@@ -27,6 +27,33 @@ Restricted DHCP and RADIUS agents validate and atomically install file-backed ch
 
 The cookie is always `Secure`, so plain HTTP is intentionally unsuitable for login.
 
+### Key material
+
+- **DNS/DHCP TSIG key** (`rndc-key`, name fixed by `named.conf` and `dhcpd.conf`):
+  on first start the `dns` container seeds it from `NETADMIN_DNS_TSIG_SECRET`
+  (base64) or generates it if that is unset, prints the **full key to the console
+  on every start**, and shares it with `dhcp` through the `rndc-shared` volume.
+  Existing key material is never regenerated: later edits or removal of the env
+  value do not rotate it. To rotate, stop both services, delete the key and start
+  again:
+
+  ```sh
+  docker compose stop dhcp dns
+  docker compose run --rm --entrypoint rm dns /run/rndc/rndc.key
+  docker compose up -d dns dhcp
+  ```
+
+- **RADIUS TLS material**: generated at first start by the packaged bootstrap
+  into the `radius-certs` volume — nothing is baked into the image. To keep
+  serving an existing CA (so supplicants keep trusting it), base64 the current
+  material into `NETADMIN_RADIUS_TLS_SERVER_PEM` and `NETADMIN_RADIUS_TLS_CA_PEM`
+  (plus optionally `NETADMIN_RADIUS_TLS_CA_KEY` and
+  `NETADMIN_RADIUS_TLS_CLIENT_PEM`), e.g. `base64 -w0 server.pem`. Seeds are
+  validated before install; a corrupt seed fails the container loudly instead of
+  silently rotating the CA. Logs show fingerprints and subjects only — private
+  keys are never printed. `scripts/cutover.sh` extracts this material from the
+  old stack automatically.
+
 For Home Assistant, open the add-on through its ingress (sidebar) panel on first run: a
 setup wizard generates the secrets, hashes the emergency root password and writes
 `/config/netadmin.env` (mode 0640). Restart the add-on to load it. The wizard is only
@@ -52,8 +79,12 @@ pytest
 GitHub Actions runs the same checks plus container smoke tests on every push and
 pull request (`.github/workflows/ci.yml`, `lint.yml`, `pre-commit.yml`, `codeql.yml`).
 The smoke tests boot each image and verify real behaviour: login and Secure
-cookies for the app, mTLS plus bearer-token enforcement for the agents, and
-ingress-only access plus wizard locking for the add-on (`Tools/smoke_*.sh`).
+cookies for the app, mTLS plus bearer-token enforcement for the agents,
+ingress-only access plus wizard locking for the add-on, TSIG key precedence and
+real dynamic updates for the dns service, the shared-volume key wait and install
+flow for dhcp, and runtime TLS generation, reuse, seeded-material validation and
+fingerprint-only logging for radius (`Tools/smoke_*.sh`). Every image is built and
+smoke-tested on both amd64 and aarch64 (native runners).
 
 Pushing a `vX.Y.Z` tag publishes multi-arch images to GHCR after verify and lint
 gates pass (`.github/workflows/publish.yml`):
@@ -61,6 +92,9 @@ gates pass (`.github/workflows/publish.yml`):
 - `ghcr.io/timlaing/netadmin` — web application
 - `ghcr.io/timlaing/netadmin-dhcp-agent` — restricted DHCP agent
 - `ghcr.io/timlaing/netadmin-radius-agent` — restricted RADIUS agent
+- `ghcr.io/timlaing/netadmin-dns` — Bind 9 service
+- `ghcr.io/timlaing/netadmin-dhcp` — ISC DHCPD service
+- `ghcr.io/timlaing/netadmin-radius` — FreeRADIUS service
 - `ghcr.io/timlaing/<arch>-addon-netadmin` — Home Assistant add-on
 
 The tag must match `home-assistant/netadmin/config.yaml`'s `version`. Release

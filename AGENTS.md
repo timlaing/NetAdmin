@@ -43,6 +43,13 @@ Three deployables from one package, wired in `docker-compose.yml`:
   first while old services still run, then stops old, syncs leases/zones (incl.
   `.jnl`), and starts the new stack with health checks. Keeps old containers for
   rollback. Run it on the server from a repo checkout, not locally.
+- Service images: `docker/Dockerfile.{bind,dhcpd,freeradius}` with
+  `docker/entrypoint-*.sh`; compose tags them `ghcr.io/timlaing/netadmin-{dns,dhcp,radius}`.
+  Entrypoints own key material at runtime — never baked into images: dns seeds or
+  generates `rndc-key` into the `rndc-shared` volume and prints the full key on
+  every start, dhcp waits for that volume and copies the key to
+  `/etc/dhcp/rndc.key`, radius generates or seeds TLS into `radius-certs` and logs
+  fingerprints only (never keys). Existing material is never silently replaced.
 
 Flow: web app never writes service config itself; it calls the agents, which validate a
 candidate file (e.g. `dhcpd -t`, `freeradius -C`), atomically install it, and roll back

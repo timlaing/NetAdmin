@@ -86,6 +86,36 @@ jobs:
             runner: ubuntu-24.04-arm
             dockerfile: docker/Dockerfile.radius-agent
             smoke: Tools/smoke_agent.sh
+          - flavour: dns
+            arch: amd64
+            runner: ubuntu-24.04
+            dockerfile: docker/Dockerfile.bind
+            smoke: Tools/smoke_dns.sh
+          - flavour: dns
+            arch: aarch64
+            runner: ubuntu-24.04-arm
+            dockerfile: docker/Dockerfile.bind
+            smoke: Tools/smoke_dns.sh
+          - flavour: dhcp
+            arch: amd64
+            runner: ubuntu-24.04
+            dockerfile: docker/Dockerfile.dhcpd
+            smoke: Tools/smoke_dhcp.sh
+          - flavour: dhcp
+            arch: aarch64
+            runner: ubuntu-24.04-arm
+            dockerfile: docker/Dockerfile.dhcpd
+            smoke: Tools/smoke_dhcp.sh
+          - flavour: radius
+            arch: amd64
+            runner: ubuntu-24.04
+            dockerfile: docker/Dockerfile.freeradius
+            smoke: Tools/smoke_radius.sh
+          - flavour: radius
+            arch: aarch64
+            runner: ubuntu-24.04-arm
+            dockerfile: docker/Dockerfile.freeradius
+            smoke: Tools/smoke_radius.sh
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -189,7 +219,7 @@ jobs:
           base="ghcr.io/${GITHUB_REPOSITORY,,}"
           prerelease=false
           [[ "$PUBLISH_VERSION" == *-* ]] && prerelease=true
-          for suffix in '' '-dhcp-agent' '-radius-agent'; do
+          for suffix in '' '-dhcp-agent' '-radius-agent' '-dns' '-dhcp' '-radius'; do
             image="${base}${suffix}"
             sources=()
             for arch in amd64 aarch64; do

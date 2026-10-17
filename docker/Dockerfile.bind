@@ -1,0 +1,19 @@
+FROM alpine:3.24
+
+LABEL org.opencontainers.image.authors="tim@laingcorp.co.uk"
+
+# The package ships a static rndc.key baked at package build time and only
+# named.conf.authoritative/.recursive variants (no named.conf). This deployment
+# seeds or generates its key at runtime into /run/rndc, so purge the packaged
+# one; the authoritative variant gives `docker run` a bootable default, and
+# compose mounts the live named.conf over /etc/bind/named.conf.
+RUN apk add --no-cache bind \
+  && rm -f /etc/bind/rndc.key \
+  && cp /etc/bind/named.conf.authoritative /etc/bind/named.conf
+
+COPY docker/entrypoint-dns.sh /usr/local/bin/entrypoint-dns.sh
+
+EXPOSE 53
+EXPOSE 953
+
+ENTRYPOINT ["entrypoint-dns.sh"]

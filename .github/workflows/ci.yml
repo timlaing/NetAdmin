@@ -119,6 +119,42 @@ jobs:
             dockerfile: home-assistant/netadmin/Dockerfile
             image: netadmin-addon:test
             smoke: Tools/smoke_addon.sh
+          - flavour: dns
+            arch: amd64
+            runner: ubuntu-24.04
+            dockerfile: docker/Dockerfile.bind
+            image: netadmin-dns:test
+            smoke: Tools/smoke_dns.sh
+          - flavour: dns
+            arch: aarch64
+            runner: ubuntu-24.04-arm
+            dockerfile: docker/Dockerfile.bind
+            image: netadmin-dns:test
+            smoke: Tools/smoke_dns.sh
+          - flavour: dhcp
+            arch: amd64
+            runner: ubuntu-24.04
+            dockerfile: docker/Dockerfile.dhcpd
+            image: netadmin-dhcp:test
+            smoke: Tools/smoke_dhcp.sh
+          - flavour: dhcp
+            arch: aarch64
+            runner: ubuntu-24.04-arm
+            dockerfile: docker/Dockerfile.dhcpd
+            image: netadmin-dhcp:test
+            smoke: Tools/smoke_dhcp.sh
+          - flavour: radius
+            arch: amd64
+            runner: ubuntu-24.04
+            dockerfile: docker/Dockerfile.freeradius
+            image: netadmin-radius:test
+            smoke: Tools/smoke_radius.sh
+          - flavour: radius
+            arch: aarch64
+            runner: ubuntu-24.04-arm
+            dockerfile: docker/Dockerfile.freeradius
+            image: netadmin-radius:test
+            smoke: Tools/smoke_radius.sh
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

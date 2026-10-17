@@ -46,6 +46,26 @@ if [ ! -f "$ENV_FILE" ]; then
   [ -n "$TSIG_SECRET" ] || die "could not extract TSIG secret from $OLD_ROOT/dns/rndc.key"
   RADIUS_SECRET="$(openssl rand -hex 16)"
 
+  # Preserve the live RADIUS TLS material so Wi-Fi supplicants keep trusting the
+  # same CA after cutover; the radius entrypoint seeds it from these variables.
+  # If anything is unreadable, fall through to runtime generation as a whole.
+  RADIUS_TLS_SERVER=""
+  RADIUS_TLS_CA=""
+  RADIUS_TLS_CA_KEY=""
+  RADIUS_TLS_CLIENT=""
+  if docker ps --format '{{.Names}}' | grep -qx freeradius; then
+    RADIUS_TLS_SERVER="$(docker exec freeradius cat /etc/raddb/certs/server.pem 2>/dev/null | base64 | tr -d '\n' || true)"
+    RADIUS_TLS_CA="$(docker exec freeradius cat /etc/raddb/certs/ca.pem 2>/dev/null | base64 | tr -d '\n' || true)"
+    RADIUS_TLS_CA_KEY="$(docker exec freeradius cat /etc/raddb/certs/ca.key 2>/dev/null | base64 | tr -d '\n' || true)"
+    RADIUS_TLS_CLIENT="$(docker exec freeradius sh -c 'cat /etc/raddb/certs/client.key /etc/raddb/certs/client.crt' 2>/dev/null | base64 | tr -d '\n' || true)"
+  fi
+  if [ -n "$RADIUS_TLS_SERVER" ] && [ -n "$RADIUS_TLS_CA" ]; then
+    echo "extracted RADIUS TLS material from the old stack (same CA after cutover)"
+  else
+    RADIUS_TLS_SERVER=""; RADIUS_TLS_CA=""; RADIUS_TLS_CA_KEY=""; RADIUS_TLS_CLIENT=""
+    echo "note: no RADIUS TLS material extracted (radius generates fresh on first start)"
+  fi
+
   umask 0027
   cat > "$ENV_FILE" <<EOF
 NETADMIN_SECRET_KEY=$(openssl rand -hex 32)
@@ -53,6 +73,10 @@ NETADMIN_AGENT_TOKEN=$(openssl rand -hex 32)
 NETADMIN_ROOT_PASSWORD_HASH=$ROOT_HASH
 NETADMIN_RADIUS_SECRET=$RADIUS_SECRET
 NETADMIN_DNS_TSIG_SECRET=$TSIG_SECRET
+NETADMIN_RADIUS_TLS_SERVER_PEM=$RADIUS_TLS_SERVER
+NETADMIN_RADIUS_TLS_CA_PEM=$RADIUS_TLS_CA
+NETADMIN_RADIUS_TLS_CA_KEY=$RADIUS_TLS_CA_KEY
+NETADMIN_RADIUS_TLS_CLIENT_PEM=$RADIUS_TLS_CLIENT
 EOF
   chmod 640 "$ENV_FILE"
 

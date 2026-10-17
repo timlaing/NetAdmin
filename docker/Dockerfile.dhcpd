@@ -1,0 +1,19 @@
+FROM ubuntu:26.04
+
+LABEL org.opencontainers.image.authors="tim@laingcorp.co.uk"
+
+RUN apt-get update \
+  && apt-get install -y \
+    isc-dhcp-server \
+  && apt-get clean \
+  && rm -rf /var/lib/apt/lists/* \
+  # dhcpd refuses to start without an existing lease database; the compose
+  # stack overlays this directory with the live leases tree, but bare runs
+  # (and CI smoke tests) rely on this empty initial file.
+  && touch /var/lib/dhcp/dhcpd.leases
+
+COPY docker/entrypoint-dhcp.sh /usr/local/bin/entrypoint-dhcp.sh
+
+EXPOSE 67
+
+ENTRYPOINT ["entrypoint-dhcp.sh"]

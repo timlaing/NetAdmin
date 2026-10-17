@@ -63,20 +63,24 @@ services:
 
   dhcp:
     build:
-      context: dhcp
-      dockerfile: Dockerfile
-      tags:
-        - dhcpd:ubuntu
+      context: .
+      dockerfile: docker/Dockerfile.dhcpd
+    image: ghcr.io/timlaing/netadmin-dhcp
     container_name: dhcp
     hostname: dhcp
-    restart: unless-stopped 
+    restart: unless-stopped
+    # dhcpd.conf includes /etc/dhcp/rndc.key; the entrypoint copies it in from
+    # the shared volume once dns has seeded or generated it.
+    depends_on:
+      dns:
+        condition: service_healthy
     ports:
       - 67:67/udp
       - 67:67/tcp
     volumes:
       - "./dhcp/config:/etc/dhcp/"
       - "./dhcp/leases:/var/lib/dhcp:rw"
-      - "./dns/rndc.key:/etc/dhcp/rndc.key:ro"
+      - "rndc-shared:/run/rndc:ro"
     command:
       - "-4"
       - "-d"
@@ -88,17 +92,26 @@ services:
 
   dns:
     build:
-      context: dns
-      dockerfile: Dockerfile
-      tags:
-        - bind9:alpine
+      context: .
+      dockerfile: docker/Dockerfile.bind
+    image: ghcr.io/timlaing/netadmin-dns
     container_name: dns
     hostname: dns-master
-    restart: unless-stopped 
+    restart: unless-stopped
+    # Only the TSIG secret crosses this boundary; the key name is the fixed
+    # "rndc-key" and the full key is printed to the console on every start.
+    environment:
+      NETADMIN_DNS_TSIG_SECRET: ${NETADMIN_DNS_TSIG_SECRET:-}
     command:
       - "-c"
       - "/etc/bind/named.conf"
       - "-4"
+    healthcheck:
+      test: ["CMD", "nslookup", "localhost", "127.0.0.1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     ports:
       - "53:53/udp"
       - "53:53/tcp"
@@ -108,20 +121,26 @@ services:
       - 192.168.100.25
     volumes:
       - "./dns/named.conf:/etc/bind/named.conf"
-      - "./dns/rndc.key:/etc/bind/rndc.key"
+      - "rndc-shared:/run/rndc"
       - "./dns/named.ca:/var/bind/named.ca"
       - "./dns/zones/fwd:/var/bind/fwd"
       - "./dns/zones/rev:/var/bind/rev"
 
   radius:
     build:
-      context: freeradius
-      dockerfile: Dockerfile
-      tags:
-        - freeradius:alpine
+      context: .
+      dockerfile: docker/Dockerfile.freeradius
+    image: ghcr.io/timlaing/netadmin-radius
     container_name: freeradius
     hostname: radius
     restart: unless-stopped
+    # Optional: seed existing TLS material instead of generating fresh on an
+    # empty certs volume (base64 PEM, see README). Fingerprints only in logs.
+    environment:
+      NETADMIN_RADIUS_TLS_SERVER_PEM: ${NETADMIN_RADIUS_TLS_SERVER_PEM:-}
+      NETADMIN_RADIUS_TLS_CA_PEM: ${NETADMIN_RADIUS_TLS_CA_PEM:-}
+      NETADMIN_RADIUS_TLS_CA_KEY: ${NETADMIN_RADIUS_TLS_CA_KEY:-}
+      NETADMIN_RADIUS_TLS_CLIENT_PEM: ${NETADMIN_RADIUS_TLS_CLIENT_PEM:-}
     ports:
       - "1812:1812/udp"
       - "1813:1813/udp"
@@ -129,9 +148,9 @@ services:
       - "./freeradius/raddb/mods-config/files/authorize:/etc/raddb/mods-config/files/authorize"
       - "./freeradius/raddb/mods-config/files/netadmin:/etc/raddb/mods-config/files/netadmin"
       - "./freeradius/raddb/mods-config/files/dhcp:/etc/raddb/mods-config/files/dhcp"
-      - "./freeradius/raddb/mods-available/eap:/etc/raddb/mods-available/eap"
       - "./freeradius/raddb/clients.conf:/etc/raddb/clients.conf"
       - "./freeradius/raddb/netadmin-clients.conf:/etc/raddb/netadmin-clients.conf"
+      - "radius-certs:/etc/raddb/certs"
     command: 
       - "-X"
 
@@ -155,3 +174,5 @@ services:
 
 volumes:
   netadmin-data:
+  rndc-shared:
+  radius-certs:
