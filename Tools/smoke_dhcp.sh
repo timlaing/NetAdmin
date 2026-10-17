@@ -27,7 +27,7 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 
 # grep without -q so the log stream is consumed to EOF: with pipefail an early
 # exit would surface docker logs' SIGPIPE as a false mismatch.
-log_has() { docker logs "$name" 2>&1 | grep "$1" >/dev/null; }
+log_has() { local pattern="$1"; docker logs "$name" 2>&1 | grep "$pattern" >/dev/null; }
 
 # Derive a subnet on this host's docker bridge so dhcpd can bind eth0 on any
 # runner instead of hard-coding a private range.
@@ -63,19 +63,21 @@ subnet $net netmask $mask {
 EOF
 
 start() { # $1 = seconds the entrypoint may wait for the key
+  local timeout="$1"
   docker rm -f "$name" >/dev/null 2>&1 || true
   docker run -d --name "$name" \
     --mount "type=volume,source=$volume,target=/run/rndc,readonly" \
     -v "$cfg:/etc/dhcp" \
-    -e "DHCP_RNDC_WAIT_TIMEOUT=$1" \
+    -e "DHCP_RNDC_WAIT_TIMEOUT=$timeout" \
     "$image" -4 -d -cf /etc/dhcp/dhcpd.conf eth0 -lf /var/lib/dhcp/dhcpd.leases >/dev/null
 }
 
 running() { docker inspect -f '{{.State.Running}}' "$name" 2>/dev/null || echo false; }
 
 wait_log() { # $1 = pattern, $2 = seconds
-  for _ in $(seq "$2"); do
-    if log_has "$1"; then return 0; fi
+  local pattern="$1" seconds="$2"
+  for _ in $(seq "$seconds"); do
+    if log_has "$pattern"; then return 0; fi
     [[ "$(running)" == true ]] || return 0
     sleep 1
   done

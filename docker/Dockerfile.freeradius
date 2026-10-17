@@ -7,10 +7,10 @@ LABEL org.opencontainers.image.authors="tim@laingcorp.co.uk"
 # the /etc/raddb/certs volume (see docker/entrypoint-radius.sh).
 RUN apk update --no-cache \
   && apk add --no-cache \
+    bash \
     freeradius \
     freeradius-eap \
     freeradius-utils \
-    bash \
     openssl
 
 COPY docker/entrypoint-radius.sh /usr/local/bin/entrypoint-radius.sh

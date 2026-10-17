@@ -28,7 +28,7 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 
 # grep without -q so the log stream is consumed to EOF: with pipefail an early
 # exit would surface docker logs' SIGPIPE as a false mismatch.
-log_has() { docker logs "$name" 2>&1 | grep "$1" >/dev/null; }
+log_has() { local pattern="$1"; docker logs "$name" 2>&1 | grep "$pattern" >/dev/null; }
 
 # A production-shaped config: the key include, a static zone for probing and a
 # dynamic zone guarded by the same allow-update key named.conf uses in anger.
@@ -79,8 +79,9 @@ reset_volume() {
 running() { docker inspect -f '{{.State.Running}}' "$name" 2>/dev/null || echo false; }
 
 wait_log() { # $1 = pattern, $2 = seconds
-  for _ in $(seq "$2"); do
-    if log_has "$1"; then return 0; fi
+  local pattern="$1" seconds="$2"
+  for _ in $(seq "$seconds"); do
+    if log_has "$pattern"; then return 0; fi
     [[ "$(running)" == true ]] || return 1
     sleep 1
   done

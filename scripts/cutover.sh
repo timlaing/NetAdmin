@@ -21,29 +21,29 @@ say "Preflight"
 command -v docker >/dev/null || die "docker not found"
 docker compose version >/dev/null || die "docker compose v2 not found"
 docker info >/dev/null || die "cannot talk to docker (add $(id -un) to the docker group?)"
-[ -f docker-compose.yml ] || die "run this from a NetAdmin repo checkout"
-[ -d "$OLD_ROOT/dns" ] && [ -d "$OLD_ROOT/dhcp" ] || die "old stack trees not found under $OLD_ROOT"
+[[ -f docker-compose.yml ]] || die "run this from a NetAdmin repo checkout"
+[[ -d "$OLD_ROOT/dns" ]] && [[ -d "$OLD_ROOT/dhcp" ]] || die "old stack trees not found under $OLD_ROOT"
 sudo -n true 2>/dev/null || die "need passwordless sudo (to read $OLD_ROOT/dns/rndc.key)"
 
 say "Building NetAdmin images (old stack keeps running meanwhile)"
 docker compose build netadmin dhcp-agent radius-agent dns dhcp radius
 NETADMIN_IMG="$(docker compose images -q netadmin | head -1)"
 
-if [ ! -f "$ENV_FILE" ]; then
+if [[ ! -f "$ENV_FILE" ]]; then
   say "Generating .env"
-  if [ -z "${NETADMIN_ROOT_PASSWORD:-}" ]; then
+  if [[ -z "${NETADMIN_ROOT_PASSWORD:-}" ]]; then
     read -rs -p "Emergency root password (min 12 chars): " ROOT_PW; echo
     read -rs -p "Confirm: " ROOT_PW2; echo
-    [ "$ROOT_PW" = "$ROOT_PW2" ] || die "passwords differ"
+    [[ "$ROOT_PW" = "$ROOT_PW2" ]] || die "passwords differ"
   else
     ROOT_PW="$NETADMIN_ROOT_PASSWORD"
   fi
-  [ "${#ROOT_PW}" -ge 12 ] || die "root password must be at least 12 characters"
+  [[ "${#ROOT_PW}" -ge 12 ]] || die "root password must be at least 12 characters"
 
   ROOT_HASH="$(printf '%s' "$ROOT_PW" | docker run --rm -i --entrypoint python "$NETADMIN_IMG" \
     -c 'import sys; from argon2 import PasswordHasher; print(PasswordHasher().hash(sys.stdin.read().strip()))')"
   TSIG_SECRET="$(sudo cat "$OLD_ROOT/dns/rndc.key" | sed -n 's/.*secret *"\([^"]*\)".*/\1/p' | head -1)"
-  [ -n "$TSIG_SECRET" ] || die "could not extract TSIG secret from $OLD_ROOT/dns/rndc.key"
+  [[ -n "$TSIG_SECRET" ]] || die "could not extract TSIG secret from $OLD_ROOT/dns/rndc.key"
   RADIUS_SECRET="$(openssl rand -hex 16)"
 
   # Preserve the live RADIUS TLS material so Wi-Fi supplicants keep trusting the
@@ -59,7 +59,7 @@ if [ ! -f "$ENV_FILE" ]; then
     RADIUS_TLS_CA_KEY="$(docker exec freeradius cat /etc/raddb/certs/ca.key 2>/dev/null | base64 | tr -d '\n' || true)"
     RADIUS_TLS_CLIENT="$(docker exec freeradius sh -c 'cat /etc/raddb/certs/client.key /etc/raddb/certs/client.crt' 2>/dev/null | base64 | tr -d '\n' || true)"
   fi
-  if [ -n "$RADIUS_TLS_SERVER" ] && [ -n "$RADIUS_TLS_CA" ]; then
+  if [[ -n "$RADIUS_TLS_SERVER" ]] && [[ -n "$RADIUS_TLS_CA" ]]; then
     echo "extracted RADIUS TLS material from the old stack (same CA after cutover)"
   else
     RADIUS_TLS_SERVER=""; RADIUS_TLS_CA=""; RADIUS_TLS_CA_KEY=""; RADIUS_TLS_CLIENT=""
@@ -96,7 +96,7 @@ else
   say ".env already exists - reusing"
 fi
 
-if [ ! -f pki/ca.crt ]; then
+if [[ ! -f pki/ca.crt ]]; then
   say "Generating PKI (CA + agent server certs + app client cert)"
   mkdir -p pki/dhcp-agent pki/radius-agent
   openssl req -x509 -newkey rsa:3072 -nodes -days 3650 \
@@ -135,7 +135,7 @@ say "Old stack status (project under $OLD_ROOT)"
 docker ps --format 'table {{.Names}}\t{{.Status}}' | grep -E 'dns|dhcp|freeradius|wud' || true
 
 read -rs -p "Stop the old stack and cut over now? (type 'yes'): " CONFIRM; echo
-[ "$CONFIRM" = "yes" ] || die "aborted"
+[[ "$CONFIRM" = "yes" ]] || die "aborted"
 
 say "Stopping old stack (containers kept for rollback)"
 ( cd "$OLD_ROOT" && docker compose stop ) || true

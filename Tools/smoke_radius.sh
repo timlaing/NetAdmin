@@ -29,7 +29,7 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 
 # grep without -q so the log stream is consumed to EOF: with pipefail an early
 # exit would surface docker logs' SIGPIPE as a false mismatch.
-log_has() { docker logs "$name" 2>&1 | grep "$1" >/dev/null; }
+log_has() { local pattern="$1"; docker logs "$name" 2>&1 | grep "$pattern" >/dev/null; }
 
 # 0. No TLS material may exist in the image layer itself.
 if ! docker run --rm --entrypoint sh "$image" -c \
@@ -70,7 +70,7 @@ assert_no_keys() {
   fi
 }
 
-b64() { base64 < "$1" | tr -d '\n'; }
+b64() { local file="$1"; base64 < "$file" | tr -d '\n'; }
 
 # 1. Empty volume, no seed: generate at runtime, log fingerprints only.
 start
