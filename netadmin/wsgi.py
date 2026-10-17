@@ -25,4 +25,4 @@ app = build_app()
 def main() -> None:
     """Run the local development server."""
     # The server must listen on every interface inside its container.
-    app.run(host="0.0.0.0", port=8099)  # noqa: S104, NOSONAR
+    app.run(host="0.0.0.0", port=8099)  # noqa

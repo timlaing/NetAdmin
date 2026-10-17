@@ -221,4 +221,4 @@ def create_dhcp_agent() -> Flask:
 def main() -> None:
     """Run the development agent server."""
     # The container listens on every interface; mTLS and the token gate access.
-    create_dhcp_agent().run(host="0.0.0.0", port=8081)  # noqa: S104, NOSONAR
+    create_dhcp_agent().run(host="0.0.0.0", port=8081)  # noqa

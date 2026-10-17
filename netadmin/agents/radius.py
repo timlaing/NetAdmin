@@ -347,4 +347,4 @@ def _client_entries(text: str) -> dict[str, tuple[str, str, str]]:
 def main() -> None:
     """Run the development agent server."""
     # The container listens on every interface; mTLS and the token gate access.
-    create_radius_agent().run(host="0.0.0.0", port=8082)  # noqa: S104, NOSONAR
+    create_radius_agent().run(host="0.0.0.0", port=8082)  # noqa
