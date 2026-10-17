@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import ipaddress
+import re
 from dataclasses import dataclass
+from pathlib import Path
 
 import dns.name
 import dns.query
@@ -21,16 +24,53 @@ class DnsRecord:
     value: str
 
 
+@dataclass(frozen=True, slots=True)
+class DnsZone:
+    """Configured authoritative zone."""
+
+    name: str
+    file: str
+    dynamic: bool
+
+
+def discover_zones(text: str) -> list[DnsZone]:
+    """Discover authoritative zones from named.conf declarations."""
+    result = []
+    for match in re.finditer(r'(?ms)zone\s+"([^"]+)"[^\{]*\{(.*?)\};', text):
+        name, body = match.groups()
+        if not re.search(r"\btype\s+(master|primary)\s*;", body):
+            continue
+        filename = re.search(r'\bfile\s+"([^"]+)"\s*;', body)
+        result.append(
+            DnsZone(name.rstrip("."), filename.group(1) if filename else "", "allow-update" in body)
+        )
+    return result
+
+
 class BindService:
     """Read and mutate authoritative Bind zones."""
 
     def __init__(
-        self, server: str, key_name: str, key_secret: str, algorithm: str = "hmac-sha256"
+        self,
+        server: str,
+        key_name: str,
+        key_secret: str,
+        algorithm: str = "hmac-sha256",
+        config_path: Path | None = None,
+        configured_zones: tuple[str, ...] = (),
     ) -> None:
         self.server = server
         self.key_name = key_name
         self.keyring = dns.tsigkeyring.from_text({key_name: key_secret}) if key_secret else None
         self.algorithm = algorithm
+        self.config_path = config_path
+        self.configured_zones = configured_zones
+
+    def zones(self) -> list[DnsZone]:
+        """Return zones declared by the mounted Bind configuration."""
+        if self.config_path is None:
+            return [DnsZone(name, "", True) for name in self.configured_zones]
+        return discover_zones(self.config_path.read_text(encoding="utf-8"))
 
     def records(self, zone_name: str) -> list[DnsRecord]:
         """Read current zone state with AXFR."""
@@ -82,3 +122,20 @@ class BindService:
         response = dns.query.tcp(update, self.server, timeout=10)
         if response.rcode() != 0:
             raise RuntimeError(f"DNS delete failed with rcode {response.rcode()}")
+
+    def add_host(
+        self, hostname: str, address: str, forward_zone: str, reverse_zone: str, ttl: int
+    ) -> None:
+        """Create paired A/PTR records, compensating if the PTR update fails."""
+        parsed = ipaddress.IPv4Address(address)
+        forward_name = hostname.rstrip(".")
+        fqdn = f"{forward_name}.{forward_zone.rstrip('.')}."
+        reverse_suffix = reverse_zone.rstrip(".")
+        full_pointer = parsed.reverse_pointer
+        pointer_name = full_pointer.removesuffix(f".{reverse_suffix}").rstrip(".")
+        self.upsert(forward_zone, forward_name, "A", ttl, str(parsed))
+        try:
+            self.upsert(reverse_zone, pointer_name, "PTR", ttl, fqdn)
+        except Exception:
+            self.delete(forward_zone, forward_name, "A", str(parsed))
+            raise

@@ -31,6 +31,8 @@ class Settings:  # pylint: disable=too-many-instance-attributes
     dns_tsig_name: str = "rndc-key"
     dns_tsig_secret: str = ""
     dns_tsig_algorithm: str = "hmac-sha256"
+    dns_config_path: Path | None = None
+    dns_zones: tuple[str, ...] = ()
     dhcp_agent_url: str = "http://dhcp-agent:8081"
     radius_agent_url: str = "http://radius-agent:8082"
     agent_token: str = ""
@@ -53,6 +55,14 @@ class Settings:  # pylint: disable=too-many-instance-attributes
             dns_tsig_name=os.getenv("NETADMIN_DNS_TSIG_NAME", "rndc-key"),
             dns_tsig_secret=os.getenv("NETADMIN_DNS_TSIG_SECRET", ""),
             dns_tsig_algorithm=os.getenv("NETADMIN_DNS_TSIG_ALGORITHM", "hmac-sha256"),
+            dns_config_path=(
+                Path(value) if (value := os.getenv("NETADMIN_DNS_CONFIG_PATH", "")) else None
+            ),
+            dns_zones=tuple(
+                item.strip()
+                for item in os.getenv("NETADMIN_DNS_ZONES", "").split(",")
+                if item.strip()
+            ),
             dhcp_agent_url=os.getenv("NETADMIN_DHCP_AGENT_URL", "http://dhcp-agent:8081"),
             radius_agent_url=os.getenv("NETADMIN_RADIUS_AGENT_URL", "http://radius-agent:8082"),
             agent_token=os.getenv("NETADMIN_AGENT_TOKEN", ""),

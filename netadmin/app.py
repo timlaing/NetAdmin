@@ -26,6 +26,7 @@ from netadmin.forms import (
     RadiusClientForm,
     RadiusUserForm,
     ReservationForm,
+    RpiRecordForm,
 )
 from netadmin.services.agents import AgentClient
 from netadmin.services.dns import BindService
@@ -105,10 +106,12 @@ def dns_index() -> Any:
     records = extension("netadmin_dns").records(zone) if zone else []
     return render_template(
         "dns.html",
+        zones=extension("netadmin_dns").zones(),
         zone=zone,
         records=records,
         record_form=DnsRecordForm(),
         delete_form=DeleteDnsForm(),
+        rpi_form=RpiRecordForm(),
     )
 
 
@@ -144,6 +147,24 @@ def dns_delete() -> Any:
         _audit("dns.delete", f"{form.name.data}.{form.zone.data}/{form.record_type.data}")
         flash("DNS record deleted.", "success")
     return redirect(url_for("web.dns_index", zone=form.zone.data))
+
+
+@web.route("/dns/rpi", methods=["POST"])
+@admin_required
+def dns_add_rpi() -> Any:
+    """Create a paired forward and reverse Raspberry Pi entry."""
+    form = RpiRecordForm()
+    if form.validate_on_submit():
+        extension("netadmin_dns").add_host(
+            form.hostname.data or "",
+            form.address.data or "",
+            form.forward_zone.data or "",
+            form.reverse_zone.data or "",
+            int(form.ttl.data or "300"),
+        )
+        _audit("dns.rpi.create", f"{form.hostname.data}/{form.address.data}")
+        flash("Forward and reverse records created.", "success")
+    return redirect(url_for("web.dns_index", zone=form.forward_zone.data))
 
 
 @web.route("/dhcp", methods=["GET", "POST"])
@@ -312,6 +333,8 @@ def create_app(settings: Settings | None = None) -> Flask:
             runtime.dns_tsig_name,
             runtime.dns_tsig_secret,
             runtime.dns_tsig_algorithm,
+            runtime.dns_config_path,
+            runtime.dns_zones,
         ),
         netadmin_dhcp=AgentClient(runtime.dhcp_agent_url, runtime.agent_token),
         netadmin_radius=AgentClient(runtime.radius_agent_url, runtime.agent_token),

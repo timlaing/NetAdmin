@@ -50,6 +50,17 @@ class DeleteDnsForm(FlaskForm):
     submit = SubmitField("Delete")
 
 
+class RpiRecordForm(FlaskForm):
+    """Paired Raspberry Pi forward/reverse DNS form."""
+
+    hostname = StringField("Hostname", validators=[DataRequired(), Regexp(r"^[A-Za-z0-9-]+$")])
+    address = StringField("IPv4 address", validators=[DataRequired(), Length(max=45)])
+    forward_zone = StringField("Forward zone", validators=[DataRequired(), Length(max=253)])
+    reverse_zone = StringField("Reverse zone", validators=[DataRequired(), Length(max=253)])
+    ttl = StringField("TTL", default="300", validators=[Regexp(r"^[1-9][0-9]{0,8}$")])
+    submit = SubmitField("Create forward and reverse records")
+
+
 class ReservationForm(FlaskForm):
     """DHCP reservation mutation form."""
 
