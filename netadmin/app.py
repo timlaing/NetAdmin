@@ -20,6 +20,7 @@ from netadmin.auth import (
 from netadmin.config import Settings
 from netadmin.forms import (
     DeleteDnsForm,
+    DhcpSubnetForm,
     DnsRecordForm,
     LoginForm,
     PasswordForm,
@@ -182,7 +183,12 @@ def dhcp_index() -> Any:
         flash("Reservation saved.", "success")
         return redirect(url_for("web.dhcp_index"))
     return render_template(
-        "dhcp.html", form=form, reservations=client.get("reservations"), leases=client.get("leases")
+        "dhcp.html",
+        form=form,
+        subnet_form=DhcpSubnetForm(),
+        reservations=client.get("reservations"),
+        leases=client.get("leases"),
+        subnets=client.get("configuration"),
     )
 
 
@@ -194,6 +200,39 @@ def dhcp_delete() -> Any:
     cast(AgentClient, extension("netadmin_dhcp")).post("reservations/delete", {"name": name})
     _audit("dhcp.reservation.delete", name)
     return redirect(url_for("web.dhcp_index"))
+
+
+@web.route("/dhcp/configuration", methods=["POST"])
+@admin_required
+def dhcp_configuration_save() -> Any:
+    """Update ranges and options for one ISC DHCPD subnet."""
+    form = DhcpSubnetForm()
+    if form.validate_on_submit():
+        ranges = [
+            [part.strip() for part in line.split("-", 1)]
+            for line in (form.ranges.data or "").splitlines()
+            if "-" in line
+        ]
+        options = {
+            name.strip(): value.strip()
+            for line in (form.options.data or "").splitlines()
+            if "=" in line
+            for name, value in [line.split("=", 1)]
+        }
+        cast(AgentClient, extension("netadmin_dhcp")).post(
+            "configuration",
+            {"network": form.network.data, "ranges": ranges, "options": options},
+        )
+        _audit("dhcp.subnet.update", form.network.data or "")
+        flash("DHCP subnet configuration updated.", "success")
+    return redirect(url_for("web.dhcp_index"))
+
+
+@web.route("/dhcp/export/kea", methods=["GET"])
+@admin_required
+def dhcp_export_kea() -> Any:
+    """Return a current Kea migration snapshot."""
+    return cast(AgentClient, extension("netadmin_dhcp")).get("export/kea")
 
 
 @web.route("/radius", methods=["GET", "POST"])

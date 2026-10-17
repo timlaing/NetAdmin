@@ -1,7 +1,14 @@
 """CSRF-protected web forms."""
 
 from flask_wtf import FlaskForm
-from wtforms import BooleanField, PasswordField, SelectField, StringField, SubmitField
+from wtforms import (
+    BooleanField,
+    PasswordField,
+    SelectField,
+    StringField,
+    SubmitField,
+    TextAreaField,
+)
 from wtforms.validators import DataRequired, EqualTo, Length, Regexp
 
 
@@ -71,6 +78,15 @@ class ReservationForm(FlaskForm):
     )
     address = StringField("IPv4 address", validators=[DataRequired()])
     submit = SubmitField("Save reservation")
+
+
+class DhcpSubnetForm(FlaskForm):
+    """DHCP subnet pool and option editing form."""
+
+    network = StringField("Subnet network", validators=[DataRequired(), Length(max=45)])
+    ranges = TextAreaField("Ranges (start-end, one per line)", validators=[DataRequired()])
+    options = TextAreaField("Options (name=value, one per line)")
+    submit = SubmitField("Update subnet")
 
 
 class RadiusUserForm(FlaskForm):

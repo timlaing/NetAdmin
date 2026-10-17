@@ -11,7 +11,21 @@ from typing import Any
 
 from flask import Flask, jsonify
 
-from netadmin.agents.common import atomic_validated_write, create_agent, json_object
+from netadmin.agents.common import (
+    create_agent,
+    json_object,
+    validated_transaction,
+)
+from netadmin.services.dhcp_files import (
+    discover_files,
+    kea_export,
+    remove_reservation,
+    subnets,
+    update_subnet,
+)
+from netadmin.services.dhcp_files import (
+    reservations as file_reservations,
+)
 
 HOST_PATTERN = re.compile(r"host\s+([A-Za-z0-9_-]+)\s*\{(.*?)\}", re.DOTALL)
 MAC_PATTERN = re.compile(r"hardware\s+ethernet\s+([0-9A-Fa-f:]{17})\s*;")
@@ -80,23 +94,19 @@ def create_dhcp_agent() -> Flask:
     def current() -> list[dict[str, str]]:
         return parse_reservations(managed.read_text(encoding="utf-8")) if managed.exists() else []
 
-    def validate(candidate: Path) -> None:
-        # The main config must include the managed path. A same-directory candidate is
-        # swapped briefly only inside the isolated agent container for full validation.
-        original = managed.read_text(encoding="utf-8") if managed.exists() else None
-        try:
-            managed.write_text(candidate.read_text(encoding="utf-8"), encoding="utf-8")
-            subprocess.run(  # noqa: S603
-                ["/usr/sbin/dhcpd", "-t", "-4", "-cf", str(main_config)],
-                check=True,
-                capture_output=True,
-                timeout=20,
-            )  # nosec B603
-        finally:
-            if original is None:
-                managed.unlink(missing_ok=True)
-            else:
-                managed.write_text(original, encoding="utf-8")
+    def all_reservations() -> list[dict[str, str]]:
+        result = []
+        for path in discover_files(main_config):
+            result.extend(file_reservations(path.read_text(encoding="utf-8"), str(path)))
+        return result
+
+    def validate_live() -> None:
+        subprocess.run(  # noqa: S603
+            ["/usr/sbin/dhcpd", "-t", "-4", "-cf", str(main_config)],
+            check=True,
+            capture_output=True,
+            timeout=20,
+        )
 
     @app.get("/health")
     def health() -> Any:
@@ -104,7 +114,7 @@ def create_dhcp_agent() -> Flask:
 
     @app.get("/reservations")
     def reservations() -> Any:
-        return jsonify(current())
+        return jsonify(all_reservations())
 
     @app.get("/leases")
     def lease_list() -> Any:
@@ -113,21 +123,57 @@ def create_dhcp_agent() -> Flask:
     @app.post("/reservations")
     def save_reservation() -> Any:
         item = _validate_item(json_object())
-        items = [entry for entry in current() if entry["name"] != item["name"]]
+        all_items = [entry for entry in all_reservations() if entry["name"] != item["name"]]
         if any(
-            entry["mac"] == item["mac"] or entry["address"] == item["address"] for entry in items
+            entry["mac"] == item["mac"] or entry["address"] == item["address"]
+            for entry in all_items
         ):
             return jsonify({"error": "Duplicate MAC or address"}), 409
+        items = [entry for entry in current() if entry["name"] != item["name"]]
         items.append(item)
-        atomic_validated_write(managed, render_reservations(items), validate, reload_command)
+        changes = {managed: render_reservations(items)}
+        for existing in all_reservations():
+            if existing["name"] == item["name"] and Path(existing["source"]) != managed.resolve():
+                source = Path(existing["source"])
+                changes[source] = remove_reservation(
+                    source.read_text(encoding="utf-8"), item["name"]
+                )
+        validated_transaction(changes, validate_live, reload_command)
         return jsonify(item)
 
     @app.post("/reservations/delete")
     def delete_reservation() -> Any:
         name = str(json_object().get("name", ""))
         items = [entry for entry in current() if entry["name"] != name]
-        atomic_validated_write(managed, render_reservations(items), validate, reload_command)
+        changes = {managed: render_reservations(items)}
+        for existing in all_reservations():
+            if existing["name"] == name and Path(existing["source"]) != managed.resolve():
+                source = Path(existing["source"])
+                changes[source] = remove_reservation(source.read_text(encoding="utf-8"), name)
+        validated_transaction(changes, validate_live, reload_command)
         return jsonify({"deleted": name})
+
+    @app.get("/configuration")
+    def configuration() -> Any:
+        return jsonify(subnets(main_config.read_text(encoding="utf-8")))
+
+    @app.post("/configuration")
+    def save_configuration() -> Any:
+        body = json_object()
+        network = str(body.get("network", ""))
+        ranges = body.get("ranges", [])
+        options = body.get("options", {})
+        if not isinstance(ranges, list) or not isinstance(options, dict):
+            return jsonify({"error": "ranges and options have invalid types"}), 400
+        updated = update_subnet(main_config.read_text(encoding="utf-8"), network, ranges, options)
+        validated_transaction({main_config: updated}, validate_live, reload_command)
+        return jsonify({"network": network})
+
+    @app.get("/export/kea")
+    def export_kea() -> Any:
+        return jsonify(
+            kea_export(subnets(main_config.read_text(encoding="utf-8")), all_reservations())
+        )
 
     return app
 

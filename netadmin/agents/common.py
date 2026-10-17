@@ -59,6 +59,39 @@ def atomic_validated_write(
         candidate.unlink(missing_ok=True)
 
 
+def validated_transaction(
+    changes: dict[Path, str], validate: Callable[[], None], reload_command: list[str]
+) -> None:
+    """Install a group of files with validation and complete rollback on failure."""
+    originals = {path: path.read_bytes() if path.exists() else None for path in changes}
+    candidates: dict[Path, Path] = {}
+    try:
+        for path, content in changes.items():
+            descriptor, name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+            with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+                handle.write(content)
+                handle.flush()
+                os.fsync(handle.fileno())
+            candidate = Path(name)
+            candidate.chmod(0o640)
+            candidates[path] = candidate
+        for path, candidate in candidates.items():
+            os.replace(candidate, path)
+        validate()
+        if reload_command:
+            subprocess.run(reload_command, check=True, timeout=30)  # noqa: S603
+    except Exception:
+        for path, original in originals.items():
+            if original is None:
+                path.unlink(missing_ok=True)
+            else:
+                path.write_bytes(original)
+        raise
+    finally:
+        for candidate in candidates.values():
+            candidate.unlink(missing_ok=True)
+
+
 def json_object() -> dict[str, Any]:
     """Return and validate a JSON object request body."""
     value = request.get_json(silent=False)
