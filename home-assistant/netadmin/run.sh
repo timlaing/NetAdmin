@@ -1,5 +1,10 @@
 #!/usr/bin/with-contenv bashio
 set -euo pipefail
+if [[ -r /config/netadmin.env ]]; then
+  set -a
+  source /config/netadmin.env
+  set +a
+fi
 export NETADMIN_DATA_DIR=/data
 export NETADMIN_DNS_SERVER="$(bashio::config 'dns_server')"
 export NETADMIN_DNS_ZONES="$(bashio::config 'dns_zones')"

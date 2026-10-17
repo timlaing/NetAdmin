@@ -13,12 +13,13 @@ services:
       NETADMIN_DNS_SERVER: dns
       NETADMIN_DNS_CONFIG_PATH: /bind-config/named.conf
       NETADMIN_RADIUS_HOST: radius
-      NETADMIN_DHCP_AGENT_URL: http://dhcp-agent:8081
-      NETADMIN_RADIUS_AGENT_URL: http://radius-agent:8082
+      NETADMIN_DHCP_AGENT_URL: https://dhcp-agent:8081
+      NETADMIN_RADIUS_AGENT_URL: https://radius-agent:8082
     ports: ["8099:8099"]
     volumes:
       - netadmin-data:/data
       - "./dns/named.conf:/bind-config/named.conf:ro"
+      - "./pki:/pki:ro"
 
   dhcp-agent:
     build:
@@ -36,6 +37,7 @@ services:
     volumes:
       - "./dhcp/config:/etc/dhcp:rw"
       - "./dhcp/leases:/var/lib/dhcp:ro"
+      - "./pki/dhcp-agent:/pki:ro"
 
   radius-agent:
     build:
@@ -57,6 +59,7 @@ services:
       - "./freeradius/raddb/mods-config/files/authorize:/etc/raddb/mods-config/files/authorize:rw"
       - "./freeradius/raddb/clients.conf:/etc/raddb/clients.conf:ro"
       - "./freeradius/raddb/netadmin-clients.conf:/etc/raddb/netadmin-clients.conf:rw"
+      - "./pki/radius-agent:/pki:ro"
 
   dhcp:
     build:

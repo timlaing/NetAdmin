@@ -17,10 +17,19 @@ Restricted DHCP and RADIUS agents validate and atomically install file-backed ch
 
 1. Copy `.env.example` to `.env` and replace every placeholder.
 2. Add a matching RADIUS client and restricted TSIG update permission.
-3. Run `docker compose up --build -d`.
-4. Put the application behind HTTPS and open port 8099 through the reverse proxy.
+3. Create a private CA plus separate server certificates for both agents and a NetAdmin
+   client certificate under `pki/`. Certificate SANs must match `dhcp-agent` and
+   `radius-agent`.
+4. Restrict private keys to the container user (`0600`) and configuration files containing
+   hashes/secrets to `0640`.
+5. Run `docker compose up --build -d`.
+6. Put the application behind HTTPS and open port 8099 through the reverse proxy.
 
 The cookie is always `Secure`, so plain HTTP is intentionally unsuitable for login.
+
+For Home Assistant, place secret environment assignments and the three agent certificate
+paths in `/config/netadmin.env`; this file is loaded by the app but never included in its
+repository or options schema.
 
 ## Development
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, cast
 
+import httpx
 from flask import Blueprint, Flask, flash, redirect, render_template, request, url_for
 from flask_wtf import CSRFProtect
 
@@ -55,6 +56,10 @@ def login() -> Any:
     form = LoginForm()
     if form.validate_on_submit():
         username = (form.username.data or "").strip()
+        bucket = f"login:{request.remote_addr}:{username.casefold()}"
+        if not _store().allow_attempt(bucket, 5, 300):
+            _store().audit(username, "login.rate_limited", username, False)
+            return render_template("login.html", form=form), 429
         supplied_password = form.password.data or ""
         settings = _settings()
         role = (
@@ -324,6 +329,9 @@ def password() -> Any:
         flash("The emergency root password is managed through its environment hash.", "info")
         return redirect(url_for("web.dashboard"))
     if form.validate_on_submit():
+        if not _store().allow_attempt(f"password:{identity.username}", 5, 900):
+            flash("Too many password-change attempts. Try again later.", "danger")
+            return render_template("password.html", form=form), 429
         if (
             authenticate_radius(identity.username, form.current_password.data or "", _settings())
             is None
@@ -375,9 +383,30 @@ def create_app(settings: Settings | None = None) -> Flask:
             runtime.dns_config_path,
             runtime.dns_zones,
         ),
-        netadmin_dhcp=AgentClient(runtime.dhcp_agent_url, runtime.agent_token),
-        netadmin_radius=AgentClient(runtime.radius_agent_url, runtime.agent_token),
+        netadmin_dhcp=AgentClient(
+            runtime.dhcp_agent_url,
+            runtime.agent_token,
+            runtime.agent_ca,
+            runtime.agent_cert,
+            runtime.agent_key,
+        ),
+        netadmin_radius=AgentClient(
+            runtime.radius_agent_url,
+            runtime.agent_token,
+            runtime.agent_ca,
+            runtime.agent_cert,
+            runtime.agent_key,
+        ),
     )
     app.before_request(load_identity)
     app.register_blueprint(web)
+
+    @app.errorhandler(httpx.HTTPError)
+    @app.errorhandler(RuntimeError)
+    def service_error(error: Exception) -> tuple[str, int]:
+        app.logger.exception("Backend service operation failed", exc_info=error)
+        return render_template(
+            "error.html", message="A network service is unavailable or rejected the change."
+        ), 502
+
     return app

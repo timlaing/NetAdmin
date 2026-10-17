@@ -36,3 +36,10 @@ def test_expired_session_is_rejected(tmp_path: Path) -> None:
     store = Store(tmp_path / "state.sqlite3")
     session_id = store.create_session("alice", "standard", -1)
     assert store.get_session(session_id) is None
+
+
+def test_rate_limit(tmp_path: Path) -> None:
+    store = Store(tmp_path / "state.sqlite3")
+    assert store.allow_attempt("login:alice", 2, 60)
+    assert store.allow_attempt("login:alice", 2, 60)
+    assert not store.allow_attempt("login:alice", 2, 60)

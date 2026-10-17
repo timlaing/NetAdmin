@@ -47,8 +47,55 @@ def test_agent_client(monkeypatch) -> None:  # type: ignore[no-untyped-def]
         def json(self):  # type: ignore[no-untyped-def]
             return {"ok": True}
 
-    monkeypatch.setattr(httpx, "get", lambda *args, **kwargs: Response())
-    monkeypatch.setattr(httpx, "post", lambda *args, **kwargs: Response())
+    class Client:
+        def __init__(self, **kwargs):  # type: ignore[no-untyped-def]
+            pass
+
+        def __enter__(self):  # type: ignore[no-untyped-def]
+            return self
+
+        def __exit__(self, *args):  # type: ignore[no-untyped-def]
+            return None
+
+        def get(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+            return Response()
+
+        def post(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+            return Response()
+
+    monkeypatch.setattr(httpx, "Client", Client)
     client = AgentClient("http://agent", "token")
     assert client.get("health") == {"ok": True}
     assert client.post("items", {"name": "one"}) == {"ok": True}
+
+
+def test_agent_client_uses_mtls(monkeypatch, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
+    captured = {}
+
+    class Response:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self):  # type: ignore[no-untyped-def]
+            return []
+
+    class Client:
+        def __init__(self, **kwargs):  # type: ignore[no-untyped-def]
+            captured.update(kwargs)
+
+        def __enter__(self):  # type: ignore[no-untyped-def]
+            return self
+
+        def __exit__(self, *args):  # type: ignore[no-untyped-def]
+            return None
+
+        def get(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+            return Response()
+
+    monkeypatch.setattr(httpx, "Client", Client)
+    client = AgentClient(
+        "https://agent", "token", tmp_path / "ca", tmp_path / "cert", tmp_path / "key"
+    )
+    client.get("health")
+    assert captured["verify"] == str(tmp_path / "ca")
+    assert captured["cert"] == (str(tmp_path / "cert"), str(tmp_path / "key"))

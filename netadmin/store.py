@@ -60,6 +60,10 @@ class Store:
                     success INTEGER NOT NULL,
                     details TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS rate_events (
+                    bucket TEXT NOT NULL,
+                    occurred_at INTEGER NOT NULL
+                );
                 """
             )
 
@@ -131,3 +135,16 @@ class Store:
                 (limit,),
             ).fetchall()
         return [dict(row) for row in rows]
+
+    def allow_attempt(self, bucket: str, limit: int, window_seconds: int) -> bool:
+        """Consume one attempt when the sliding-window limit permits it."""
+        cutoff = int(time.time()) - window_seconds
+        with self._connect() as db:
+            db.execute("DELETE FROM rate_events WHERE occurred_at < ?", (cutoff,))
+            count = db.execute(
+                "SELECT COUNT(*) FROM rate_events WHERE bucket = ?", (bucket,)
+            ).fetchone()[0]
+            if int(count) >= limit:
+                return False
+            db.execute("INSERT INTO rate_events VALUES (?, ?)", (bucket, int(time.time())))
+        return True
