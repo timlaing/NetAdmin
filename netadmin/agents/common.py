@@ -17,7 +17,9 @@ from flask import Flask, abort, request
 
 def create_agent(name: str) -> Flask:
     """Create an internal agent protected by a bearer token."""
-    app = Flask(name)
+    # Agents authenticate with a bearer token over mTLS: there are no cookie
+    # sessions, so CSRF mitigation does not apply.
+    app = Flask(name)  # NOSONAR
     expected = os.environ.get("NETADMIN_AGENT_TOKEN", "")
     if not expected:
         raise RuntimeError("NETADMIN_AGENT_TOKEN must be set")

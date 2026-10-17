@@ -6,10 +6,11 @@ import os
 import re
 import secrets
 import subprocess  # nosec B404
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
-from flask import Flask, jsonify
+from flask import Flask, current_app, jsonify
 
 from netadmin.agents.common import (
     atomic_validated_write,
@@ -87,185 +88,245 @@ def hash_password(password: str) -> str:
     return result.stdout.strip()
 
 
+def _configured_path(name: str, default: str) -> Path:
+    """Read an agent file path from the environment, refusing traversal tricks."""
+    candidate = Path(os.getenv(name, default))
+    if not candidate.is_absolute() or ".." in candidate.parts:
+        raise ValueError(f"{name} must be absolute and free of '..': {candidate}")
+    return candidate
+
+
+def _managed_text(managed: Path) -> str:
+    """Contents of a managed file, empty when it does not exist yet."""
+    return managed.read_text(encoding="utf-8") if managed.exists() else ""
+
+
+def _stage_for(target: Path) -> Callable[[Path], None]:
+    """Build a validator that stages a candidate into the live file for radiusd."""
+    original = target.read_text(encoding="utf-8") if target.exists() else None
+
+    def validate(candidate: Path) -> None:
+        try:
+            target.write_text(candidate.read_text(encoding="utf-8"), encoding="utf-8")
+            subprocess.run(
+                ["/usr/sbin/radiusd", "-XC"],
+                check=True,
+                capture_output=True,
+                timeout=20,
+            )
+        finally:
+            if original is None:
+                target.unlink(missing_ok=True)
+            else:
+                target.write_text(original, encoding="utf-8")
+
+    return validate
+
+
+def _validate_radius() -> None:
+    subprocess.run(
+        ["/usr/sbin/radiusd", "-XC"],
+        check=True,
+        capture_output=True,
+        timeout=20,
+    )
+
+
+def _path(key: str) -> Path:
+    """Read a configured agent path from the application config."""
+    return cast(Path, current_app.config[key])
+
+
+def _pools() -> set[str]:
+    """Read the configured admin framed-pool names from the application config."""
+    return cast(set[str], current_app.config["RADIUS_ADMIN_POOLS"])
+
+
+def _reload() -> list[str]:
+    """Read the configured reload command from the application config."""
+    return cast(list[str], current_app.config["RADIUS_RELOAD"])
+
+
+def _health() -> Any:
+    return jsonify({"status": "ok"})
+
+
+def _users() -> Any:
+    legacy = parse_authorize(_path("RADIUS_AUTHORIZE").read_text(encoding="utf-8"), "authorize")
+    return jsonify(
+        [
+            {
+                "username": user.username,
+                "role": user.role,
+                "disabled": user.disabled,
+                "source": user.source,
+                "password_kind": user.password_kind,
+            }
+            for user in legacy
+        ]
+        + parse_users(_managed_text(_path("RADIUS_MANAGED")))
+    )
+
+
+def _migration_preview() -> Any:
+    _, names = migrate_authorize(
+        _path("RADIUS_AUTHORIZE").read_text(encoding="utf-8"),
+        lambda _password: "preview",
+        _pools(),
+        "netadmin-admin",
+        "netadmin-standard",
+    )
+    return jsonify({"users": names, "count": len(names)})
+
+
+def _migration_apply() -> Any:
+    authorize = _path("RADIUS_AUTHORIZE")
+    managed = _path("RADIUS_MANAGED")
+    remaining, legacy_entries = migrate_to_managed(
+        authorize.read_text(encoding="utf-8"),
+        hash_password,
+        _pools(),
+        "netadmin-admin",
+        "netadmin-standard",
+    )
+    entries = _entries(_managed_text(managed))
+    entries.update(legacy_entries)
+    validated_transaction(
+        {authorize: remaining, managed: render_users(entries)},
+        _validate_radius,
+        _reload(),
+    )
+    names = sorted(legacy_entries)
+    return jsonify({"users": names, "count": len(names)})
+
+
+def _save_user() -> Any:
+    body = json_object()
+    username = str(body.get("username", ""))
+    if not re.fullmatch(r"[A-Za-z0-9_.@-]+", username):
+        return jsonify({"error": "Invalid username"}), 400
+    managed = _path("RADIUS_MANAGED")
+    entries = _entries(_managed_text(managed))
+    existing = entries.get(username)
+    password = str(body.get("password", ""))
+    if password:
+        password_hash = hash_password(password)
+    elif existing:
+        password_hash = existing[0]
+    else:
+        password_hash = ""
+    if not password_hash:
+        return jsonify({"error": "Password required for a new user"}), 400
+    role = str(body.get("role", "standard"))
+    role_value = "netadmin-admin" if role == "admin" else "netadmin-standard"
+    disabled = bool(body.get("disabled", False))
+    entries[username] = (password_hash, role_value, disabled)
+    atomic_validated_write(managed, render_users(entries), _stage_for(managed), _reload())
+    return jsonify({"username": username, "role": role, "disabled": disabled})
+
+
+def _delete_user() -> Any:
+    username = str(json_object().get("username", ""))
+    managed = _path("RADIUS_MANAGED")
+    entries = _entries(_managed_text(managed))
+    entries.pop(username, None)
+    atomic_validated_write(managed, render_users(entries), _stage_for(managed), _reload())
+    return jsonify({"deleted": username})
+
+
+def _change_password() -> Any:
+    body = json_object()
+    username = str(body.get("username", ""))
+    managed = _path("RADIUS_MANAGED")
+    entries = _entries(_managed_text(managed))
+    if username not in entries:
+        return jsonify({"error": "Unknown user"}), 404
+    _, role, disabled = entries[username]
+    entries[username] = (hash_password(str(body.get("password", ""))), role, disabled)
+    atomic_validated_write(managed, render_users(entries), _stage_for(managed), _reload())
+    return jsonify({"changed": username, "nonce": secrets.token_hex(4)})
+
+
+def _clients() -> Any:
+    values = parse_clients(_path("RADIUS_CLIENTS").read_text(encoding="utf-8"))
+    managed_clients = _path("RADIUS_MANAGED_CLIENTS")
+    if managed_clients.exists():
+        values += parse_clients(managed_clients.read_text(encoding="utf-8"))
+    return jsonify(
+        [
+            {"name": item.name, "address": item.address, "shortname": item.shortname}
+            for item in values
+        ]
+    )
+
+
+def _client_entries_or_empty(managed_clients: Path) -> dict[str, tuple[str, str, str]]:
+    return _client_entries(_managed_text(managed_clients))
+
+
+def _save_client() -> Any:
+    body = json_object()
+    name = str(body.get("name", ""))
+    address = str(body.get("address", ""))
+    shortname = str(body.get("shortname", name))
+    secret_value = str(body.get("secret", ""))
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+", name) or not secret_value:
+        return jsonify({"error": "Valid name and secret required"}), 400
+    managed_clients = _path("RADIUS_MANAGED_CLIENTS")
+    entries = _client_entries_or_empty(managed_clients)
+    entries[name] = (address, shortname, secret_value)
+    atomic_validated_write(
+        managed_clients,
+        render_clients(entries),
+        _stage_for(managed_clients),
+        _reload(),
+    )
+    return jsonify({"name": name, "address": address, "shortname": shortname})
+
+
+def _delete_client() -> Any:
+    name = str(json_object().get("name", ""))
+    managed_clients = _path("RADIUS_MANAGED_CLIENTS")
+    entries = _client_entries_or_empty(managed_clients)
+    entries.pop(name, None)
+    atomic_validated_write(
+        managed_clients,
+        render_clients(entries),
+        _stage_for(managed_clients),
+        _reload(),
+    )
+    return jsonify({"deleted": name})
+
+
 def create_radius_agent() -> Flask:
     """Create the FreeRADIUS management agent."""
     app = create_agent(__name__)
-    managed = Path(os.getenv("RADIUS_MANAGED_FILE", "/etc/raddb/mods-config/files/netadmin"))
-    authorize = Path(os.getenv("RADIUS_AUTHORIZE_FILE", "/etc/raddb/mods-config/files/authorize"))
-    clients_file = Path(os.getenv("RADIUS_CLIENTS_FILE", "/etc/raddb/clients.conf"))
-    managed_clients = Path(
-        os.getenv("RADIUS_MANAGED_CLIENTS_FILE", "/etc/raddb/netadmin-clients.conf")
+    app.config.update(
+        RADIUS_MANAGED=_configured_path(
+            "RADIUS_MANAGED_FILE", "/etc/raddb/mods-config/files/netadmin"
+        ),
+        RADIUS_AUTHORIZE=_configured_path(
+            "RADIUS_AUTHORIZE_FILE", "/etc/raddb/mods-config/files/authorize"
+        ),
+        RADIUS_CLIENTS=_configured_path("RADIUS_CLIENTS_FILE", "/etc/raddb/clients.conf"),
+        RADIUS_MANAGED_CLIENTS=_configured_path(
+            "RADIUS_MANAGED_CLIENTS_FILE", "/etc/raddb/netadmin-clients.conf"
+        ),
+        RADIUS_ADMIN_POOLS=set(
+            filter(None, os.getenv("RADIUS_ADMIN_POOLS", "pool-parent").split(","))
+        ),
+        RADIUS_RELOAD=os.getenv("RADIUS_RELOAD_COMMAND", "").split(),
     )
-    admin_pools = set(filter(None, os.getenv("RADIUS_ADMIN_POOLS", "pool-parent").split(",")))
-    reload_command = os.getenv("RADIUS_RELOAD_COMMAND", "").split()
-
-    def text() -> str:
-        return managed.read_text(encoding="utf-8") if managed.exists() else ""
-
-    def validator(target: Path) -> Any:
-        def validate(candidate: Path) -> None:
-            original = target.read_text(encoding="utf-8") if target.exists() else None
-            try:
-                target.write_text(candidate.read_text(encoding="utf-8"), encoding="utf-8")
-                subprocess.run(
-                    ["/usr/sbin/radiusd", "-XC"],
-                    check=True,
-                    capture_output=True,
-                    timeout=20,
-                )
-            finally:
-                if original is None:
-                    target.unlink(missing_ok=True)
-                else:
-                    target.write_text(original, encoding="utf-8")
-
-        return validate
-
-    def validate_radius() -> None:
-        subprocess.run(
-            ["/usr/sbin/radiusd", "-XC"],
-            check=True,
-            capture_output=True,
-            timeout=20,
-        )
-
-    @app.get("/health")
-    def health() -> Any:
-        return jsonify({"status": "ok"})
-
-    @app.get("/users")
-    def users() -> Any:
-        legacy = parse_authorize(authorize.read_text(encoding="utf-8"), "authorize")
-        return jsonify(
-            [
-                {
-                    "username": user.username,
-                    "role": user.role,
-                    "disabled": user.disabled,
-                    "source": user.source,
-                    "password_kind": user.password_kind,
-                }
-                for user in legacy
-            ]
-            + parse_users(text())
-        )
-
-    @app.get("/migration")
-    def migration_preview() -> Any:
-        _, names = migrate_authorize(
-            authorize.read_text(encoding="utf-8"),
-            lambda _password: "preview",
-            admin_pools,
-            "netadmin-admin",
-            "netadmin-standard",
-        )
-        return jsonify({"users": names, "count": len(names)})
-
-    @app.post("/migration")
-    def migration_apply() -> Any:
-        remaining, legacy_entries = migrate_to_managed(
-            authorize.read_text(encoding="utf-8"),
-            hash_password,
-            admin_pools,
-            "netadmin-admin",
-            "netadmin-standard",
-        )
-        entries = _entries(text())
-        entries.update(legacy_entries)
-        validated_transaction(
-            {authorize: remaining, managed: render_users(entries)},
-            validate_radius,
-            reload_command,
-        )
-        names = sorted(legacy_entries)
-        return jsonify({"users": names, "count": len(names)})
-
-    @app.post("/users")
-    def save_user() -> Any:
-        body = json_object()
-        username = str(body.get("username", ""))
-        if not re.fullmatch(r"[A-Za-z0-9_.@-]+", username):
-            return jsonify({"error": "Invalid username"}), 400
-        entries = _entries(text())
-        existing = entries.get(username)
-        password = str(body.get("password", ""))
-        password_hash = hash_password(password) if password else (existing[0] if existing else "")
-        if not password_hash:
-            return jsonify({"error": "Password required for a new user"}), 400
-        role = str(body.get("role", "standard"))
-        role_value = "netadmin-admin" if role == "admin" else "netadmin-standard"
-        entries[username] = (password_hash, role_value, bool(body.get("disabled", False)))
-        atomic_validated_write(managed, render_users(entries), validator(managed), reload_command)
-        return jsonify({"username": username, "role": role, "disabled": bool(body.get("disabled"))})
-
-    @app.post("/users/delete")
-    def delete_user() -> Any:
-        username = str(json_object().get("username", ""))
-        entries = _entries(text())
-        entries.pop(username, None)
-        atomic_validated_write(managed, render_users(entries), validator(managed), reload_command)
-        return jsonify({"deleted": username})
-
-    @app.post("/users/password")
-    def change_password() -> Any:
-        body = json_object()
-        username = str(body.get("username", ""))
-        entries = _entries(text())
-        if username not in entries:
-            return jsonify({"error": "Unknown user"}), 404
-        _, role, disabled = entries[username]
-        entries[username] = (hash_password(str(body.get("password", ""))), role, disabled)
-        atomic_validated_write(managed, render_users(entries), validator(managed), reload_command)
-        return jsonify({"changed": username, "nonce": secrets.token_hex(4)})
-
-    @app.get("/clients")
-    def clients() -> Any:
-        values = parse_clients(clients_file.read_text(encoding="utf-8"))
-        if managed_clients.exists():
-            values += parse_clients(managed_clients.read_text(encoding="utf-8"))
-        return jsonify(
-            [
-                {"name": item.name, "address": item.address, "shortname": item.shortname}
-                for item in values
-            ]
-        )
-
-    @app.post("/clients")
-    def save_client() -> Any:
-        body = json_object()
-        name = str(body.get("name", ""))
-        address = str(body.get("address", ""))
-        shortname = str(body.get("shortname", name))
-        secret_value = str(body.get("secret", ""))
-        if not re.fullmatch(r"[A-Za-z0-9_.-]+", name) or not secret_value:
-            return jsonify({"error": "Valid name and secret required"}), 400
-        entries = _client_entries(
-            managed_clients.read_text(encoding="utf-8") if managed_clients.exists() else ""
-        )
-        entries[name] = (address, shortname, secret_value)
-        atomic_validated_write(
-            managed_clients,
-            render_clients(entries),
-            validator(managed_clients),
-            reload_command,
-        )
-        return jsonify({"name": name, "address": address, "shortname": shortname})
-
-    @app.post("/clients/delete")
-    def delete_client() -> Any:
-        name = str(json_object().get("name", ""))
-        entries = _client_entries(
-            managed_clients.read_text(encoding="utf-8") if managed_clients.exists() else ""
-        )
-        entries.pop(name, None)
-        atomic_validated_write(
-            managed_clients,
-            render_clients(entries),
-            validator(managed_clients),
-            reload_command,
-        )
-        return jsonify({"deleted": name})
-
+    app.add_url_rule("/health", view_func=_health, methods=["GET"])
+    app.add_url_rule("/users", view_func=_users, methods=["GET"])
+    app.add_url_rule("/migration", view_func=_migration_preview, methods=["GET"])
+    app.add_url_rule("/migration", view_func=_migration_apply, methods=["POST"])
+    app.add_url_rule("/users", view_func=_save_user, methods=["POST"])
+    app.add_url_rule("/users/delete", view_func=_delete_user, methods=["POST"])
+    app.add_url_rule("/users/password", view_func=_change_password, methods=["POST"])
+    app.add_url_rule("/clients", view_func=_clients, methods=["GET"])
+    app.add_url_rule("/clients", view_func=_save_client, methods=["POST"])
+    app.add_url_rule("/clients/delete", view_func=_delete_client, methods=["POST"])
     return app
 
 
@@ -285,4 +346,5 @@ def _client_entries(text: str) -> dict[str, tuple[str, str, str]]:
 
 def main() -> None:
     """Run the development agent server."""
-    create_radius_agent().run(host="0.0.0.0", port=8082)  # noqa: S104
+    # The container listens on every interface; mTLS and the token gate access.
+    create_radius_agent().run(host="0.0.0.0", port=8082)  # noqa

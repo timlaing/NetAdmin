@@ -28,86 +28,94 @@ say() { printf '[entrypoint-radius] %s\n' "$*"; }
 die() { printf '[entrypoint-radius] ERROR: %s\n' "$*" >&2; exit 1; }
 
 decode_var() { # $1 = variable value; prints decoded PEM
-  case "$1" in
-    *-----BEGIN*) printf '%b\n' "$1" ;;
+  local value="$1"
+  case "$value" in
+    *-----BEGIN*) printf '%b\n' "$value" ;;
     *)
-      printf '%s' "$1" | base64 -d 2>/dev/null \
+      printf '%s' "$value" | base64 -d 2>/dev/null \
         || die "TLS seed variable is neither PEM nor valid base64"
       ;;
   esac
 }
 
 extract_cert() { # $1 = PEM file; prints the first certificate block
+  local pem="$1"
   awk '$0 == "-----BEGIN CERTIFICATE-----" { p = 1 } p { print } \
-       $0 == "-----END CERTIFICATE-----" { exit }' "$1"
+       $0 == "-----END CERTIFICATE-----" { exit }' "$pem"
 }
 
 extract_key() { # $1 = PEM file; prints the first private key block
+  local pem="$1"
   awk '/^-----BEGIN .*PRIVATE KEY-----$/ { p = 1 } p { print } \
-       /^-----END .*PRIVATE KEY-----$/ { exit }' "$1"
+       /^-----END .*PRIVATE KEY-----$/ { exit }' "$pem"
 }
 
 key_pubkey() { # $1 = key PEM file; prints the public key, or fails
-  openssl pkey -in "$1" -pubout -passin "pass:$BOOTSTRAP_PASS" 2>/dev/null \
-    || openssl pkey -in "$1" -pubout 2>/dev/null
+  local pem="$1"
+  openssl pkey -in "$pem" -pubout -passin "pass:$BOOTSTRAP_PASS" 2>/dev/null \
+    || openssl pkey -in "$pem" -pubout 2>/dev/null
 }
 
 validate_pair() { # $1 = cert+key file, $2 = CA file, $3 = label
+  local cert_file="$1" ca_file="$2" label="$3"
   local tmp cert_pem key_pem cert_pub key_pub
   tmp="$(mktemp -d)"
   cert_pem="$tmp/cert.pem"
   key_pem="$tmp/key.pem"
-  extract_cert "$1" > "$cert_pem"
-  extract_key "$1" > "$key_pem"
+  extract_cert "$cert_file" > "$cert_pem"
+  extract_key "$cert_file" > "$key_pem"
   grep -q "BEGIN CERTIFICATE" "$cert_pem" \
-    || { rm -rf "$tmp"; die "$3: no X.509 certificate found"; }
+    || { rm -rf "$tmp"; die "$label: no X.509 certificate found"; }
   grep -q "PRIVATE KEY" "$key_pem" \
-    || { rm -rf "$tmp"; die "$3: no private key found"; }
+    || { rm -rf "$tmp"; die "$label: no private key found"; }
   openssl x509 -in "$cert_pem" -noout 2>/dev/null \
-    || { rm -rf "$tmp"; die "$3: certificate does not parse"; }
+    || { rm -rf "$tmp"; die "$label: certificate does not parse"; }
   key_pub="$(key_pubkey "$key_pem")" \
-    || { rm -rf "$tmp"; die "$3: private key unreadable (encrypted with an unexpected password?)"; }
+    || { rm -rf "$tmp"; die "$label: private key unreadable (encrypted with an unexpected password?)"; }
   cert_pub="$(openssl x509 -in "$cert_pem" -noout -pubkey 2>/dev/null)" \
-    || { rm -rf "$tmp"; die "$3: cannot read certificate public key"; }
-  [ "$cert_pub" = "$key_pub" ] \
-    || { rm -rf "$tmp"; die "$3: certificate and private key do not match"; }
-  openssl verify -CAfile "$2" "$cert_pem" >/dev/null 2>&1 \
-    || { rm -rf "$tmp"; die "$3: certificate does not verify against the provided CA"; }
+    || { rm -rf "$tmp"; die "$label: cannot read certificate public key"; }
+  [[ "$cert_pub" = "$key_pub" ]] \
+    || { rm -rf "$tmp"; die "$label: certificate and private key do not match"; }
+  openssl verify -CAfile "$ca_file" "$cert_pem" >/dev/null 2>&1 \
+    || { rm -rf "$tmp"; die "$label: certificate does not verify against the provided CA"; }
   rm -rf "$tmp"
 }
 
 validate_ca() { # $1 = CA certificate file
-  openssl x509 -in "$1" -noout 2>/dev/null || die "CA_PEM: certificate does not parse"
+  local ca_file="$1"
+  openssl x509 -in "$ca_file" -noout 2>/dev/null || die "CA_PEM: certificate does not parse"
 }
 
 validate_ca_key() { # $1 = CA key file, $2 = CA certificate file
+  local key_file="$1" ca_file="$2"
   local tmp key_pub cert_pub
   tmp="$(mktemp -d)"
-  extract_key "$1" > "$tmp/ca.key"
+  extract_key "$key_file" > "$tmp/ca.key"
   grep -q "PRIVATE KEY" "$tmp/ca.key" \
     || { rm -rf "$tmp"; die "CA_KEY: no private key found"; }
   key_pub="$(key_pubkey "$tmp/ca.key")" \
     || { rm -rf "$tmp"; die "CA_KEY: private key unreadable (encrypted with an unexpected password?)"; }
-  cert_pub="$(openssl x509 -in "$2" -noout -pubkey 2>/dev/null)" \
+  cert_pub="$(openssl x509 -in "$ca_file" -noout -pubkey 2>/dev/null)" \
     || { rm -rf "$tmp"; die "CA_KEY: cannot read CA certificate public key"; }
-  [ "$key_pub" = "$cert_pub" ] \
+  [[ "$key_pub" = "$cert_pub" ]] \
     || { rm -rf "$tmp"; die "CA_KEY: does not match the provided CA certificate"; }
   rm -rf "$tmp"
 }
 
 fingerprint_file() { # $1 = certificate-bearing file; prints sha256 + subject
+  local pem="$1"
   local fp subject
-  fp="$(openssl x509 -in "$1" -noout -fingerprint -sha256 2>/dev/null | cut -d= -f2-)" \
+  fp="$(openssl x509 -in "$pem" -noout -fingerprint -sha256 2>/dev/null | cut -d= -f2-)" \
     || return 1
-  [ -n "$fp" ] || return 1
-  subject="$(openssl x509 -in "$1" -noout -subject -serial 2>/dev/null | tr '\n' ' ')"
-  printf '    %-11s sha256 %s\n    %s\n' "$(basename "$1")" "$fp" "$subject"
+  [[ -n "$fp" ]] || return 1
+  subject="$(openssl x509 -in "$pem" -noout -subject -serial 2>/dev/null | tr '\n' ' ')"
+  printf '    %-11s sha256 %s\n    %s\n' "$(basename "$pem")" "$fp" "$subject"
 }
 
 fix_permissions() {
   local f
   for f in "$CERT_DIR"/*; do
-    [ -f "$f" ] || continue
+    [[ -f "$f" ]] || continue
     chown root:radius "$f"
     case "$(basename "$f")" in
       # radiusd instantiates eap as its runtime (non-root) user, which must be
@@ -127,8 +135,8 @@ fix_permissions() {
 
 has_server=false
 has_ca=false
-[ -s "$SERVER_PEM" ] && has_server=true
-[ -s "$CA_PEM" ] && has_ca=true
+[[ -s "$SERVER_PEM" ]] && has_server=true
+[[ -s "$CA_PEM" ]] && has_ca=true
 
 if [[ "$has_server" == true && "$has_ca" == true ]]; then
   state="reusing existing TLS material from $CERT_DIR"

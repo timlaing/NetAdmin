@@ -14,6 +14,12 @@ def _required(name: str) -> str:
     return value
 
 
+def _path_env(name: str) -> Path | None:
+    """Read an optional filesystem path from the environment."""
+    value = os.getenv(name, "")
+    return Path(value) if value else None
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:  # pylint: disable=too-many-instance-attributes
     """Runtime settings shared by the web application."""
@@ -58,9 +64,7 @@ class Settings:  # pylint: disable=too-many-instance-attributes
             dns_tsig_name=os.getenv("NETADMIN_DNS_TSIG_NAME", "rndc-key"),
             dns_tsig_secret=os.getenv("NETADMIN_DNS_TSIG_SECRET", ""),
             dns_tsig_algorithm=os.getenv("NETADMIN_DNS_TSIG_ALGORITHM", "hmac-sha256"),
-            dns_config_path=(
-                Path(value) if (value := os.getenv("NETADMIN_DNS_CONFIG_PATH", "")) else None
-            ),
+            dns_config_path=_path_env("NETADMIN_DNS_CONFIG_PATH"),
             dns_zones=tuple(
                 item.strip()
                 for item in os.getenv("NETADMIN_DNS_ZONES", "").split(",")
@@ -69,8 +73,8 @@ class Settings:  # pylint: disable=too-many-instance-attributes
             dhcp_agent_url=os.getenv("NETADMIN_DHCP_AGENT_URL", "http://dhcp-agent:8081"),
             radius_agent_url=os.getenv("NETADMIN_RADIUS_AGENT_URL", "http://radius-agent:8082"),
             agent_token=os.getenv("NETADMIN_AGENT_TOKEN", ""),
-            agent_ca=Path(value) if (value := os.getenv("NETADMIN_AGENT_CA", "")) else None,
-            agent_cert=Path(value) if (value := os.getenv("NETADMIN_AGENT_CERT", "")) else None,
-            agent_key=Path(value) if (value := os.getenv("NETADMIN_AGENT_KEY", "")) else None,
+            agent_ca=_path_env("NETADMIN_AGENT_CA"),
+            agent_cert=_path_env("NETADMIN_AGENT_CERT"),
+            agent_key=_path_env("NETADMIN_AGENT_KEY"),
             session_minutes=int(os.getenv("NETADMIN_SESSION_MINUTES", "60")),
         )
