@@ -36,7 +36,7 @@ openssl req -new -key "$pki/client.key" -subj "/CN=netadmin-smoke" -out "$pki/cl
 openssl x509 -req -in "$pki/client.csr" -CA "$pki/ca.crt" -CAkey "$pki/ca.key" \
   -CAcreateserial -days 2 -sha256 -out "$pki/client.crt" 2>/dev/null
 docker run -d --name "$name" --cap-drop ALL --security-opt no-new-privileges \
-  --mount "type=bind,source=$pki,target=/pki:ro" \
+  --mount "type=bind,source=$pki,target=/pki,readonly" \
   -e NETADMIN_AGENT_TOKEN=smoke-test-agent-token \
   -p "127.0.0.1::$port" "$image" >/dev/null
 mapped="$(docker port "$name" "$port"/tcp | sed 's/.*://')"

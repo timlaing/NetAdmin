@@ -94,8 +94,11 @@ if log_has "Listening on"; then
 fi
 
 # 2. Key appears on the shared volume: install and start dhcpd.
+# Written by container root: chmod so the host-side grep below can read it as
+# the unprivileged CI user (Linux runners keep root ownership; Docker Desktop
+# on macOS maps it to the host user).
 docker run --rm --mount "type=volume,source=$volume,target=/out" --entrypoint sh "$image" -c \
-  'printf "key \"rndc-key\" {\n\talgorithm hmac-sha256;\n\tsecret \"c21tb2tlLXNlY3JldC12YWx1ZS1mM3h0dw==\";\n};\n" > /out/rndc.key'
+  'printf "key \"rndc-key\" {\n\talgorithm hmac-sha256;\n\tsecret \"c21tb2tlLXNlY3JldC12YWx1ZS1mM3h0dw==\";\n};\n" > /out/rndc.key && chmod 0644 /out/rndc.key'
 wait_log "installed dns key" 15 || fail "key was never installed"
 [[ -f "$cfg/rndc.key" ]] || fail "key not copied into the bind-mounted /etc/dhcp tree"
 grep -q 'secret "c21tb2tlLXNlY3JldC12YWx1ZS1mM3h0dw=="' "$cfg/rndc.key" \
