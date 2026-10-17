@@ -1,0 +1,206 @@
+name: Publish containers
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Validate tag
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.names.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: 🔍 Validate publication reference
+        id: names
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?$ ]] \
+            || { echo 'Use a semantic version tag'; exit 1; }
+          version="${GITHUB_REF_NAME#v}"
+          addon_version="$(sed -n 's/^version: "\(.*\)"$/\1/p' home-assistant/netadmin/config.yaml)"
+          [[ "$version" == "$addon_version" ]] \
+            || { echo "Tag v$version does not match add-on version $addon_version"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  verify:
+    name: Verify
+    needs: prepare
+    uses: ./.github/workflows/ci.yml
+
+  lint:
+    name: Lint
+    needs: prepare
+    uses: ./.github/workflows/lint.yml
+
+  publish:
+    name: Publish ${{ matrix.flavour }} ${{ matrix.arch }}
+    needs: [prepare, verify, lint]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - flavour: netadmin
+            arch: amd64
+            runner: ubuntu-24.04
+            dockerfile: Dockerfile
+            smoke: Tools/smoke_app.sh
+          - flavour: netadmin
+            arch: aarch64
+            runner: ubuntu-24.04-arm
+            dockerfile: Dockerfile
+            smoke: Tools/smoke_app.sh
+          - flavour: dhcp-agent
+            arch: amd64
+            runner: ubuntu-24.04
+            dockerfile: docker/Dockerfile.dhcp-agent
+            smoke: Tools/smoke_agent.sh
+          - flavour: dhcp-agent
+            arch: aarch64
+            runner: ubuntu-24.04-arm
+            dockerfile: docker/Dockerfile.dhcp-agent
+            smoke: Tools/smoke_agent.sh
+          - flavour: radius-agent
+            arch: amd64
+            runner: ubuntu-24.04
+            dockerfile: docker/Dockerfile.radius-agent
+            smoke: Tools/smoke_agent.sh
+          - flavour: radius-agent
+            arch: aarch64
+            runner: ubuntu-24.04-arm
+            dockerfile: docker/Dockerfile.radius-agent
+            smoke: Tools/smoke_agent.sh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: 🏗️ Build and publish per-arch image
+        env:
+          FLAVOUR: ${{ matrix.flavour }}
+          BUILD_ARCH: ${{ matrix.arch }}
+          BUILD_DOCKERFILE: ${{ matrix.dockerfile }}
+          SMOKE_SCRIPT: ${{ matrix.smoke }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PUBLISH_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          base="ghcr.io/${GITHUB_REPOSITORY,,}"
+          if [[ "$FLAVOUR" == netadmin ]]; then
+            image="$base"
+          else
+            image="${base}-${FLAVOUR}"
+          fi
+          trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
+          printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          docker build --pull -f "$BUILD_DOCKERFILE" \
+            --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --label "org.opencontainers.image.version=$PUBLISH_VERSION" \
+            --label 'org.opencontainers.image.licenses=MIT' \
+            -t "$image:sha-$GITHUB_SHA-$BUILD_ARCH" .
+          bash "$SMOKE_SCRIPT" "$image:sha-$GITHUB_SHA-$BUILD_ARCH"
+          docker push "$image:sha-$GITHUB_SHA-$BUILD_ARCH"
+          echo "Published $image:sha-$GITHUB_SHA-$BUILD_ARCH" >> "$GITHUB_STEP_SUMMARY"
+
+  publish-addon:
+    name: Publish add-on ${{ matrix.arch }}
+    needs: [prepare, verify, lint]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: 🏗️ Build and publish add-on image
+        env:
+          BUILD_ARCH: ${{ matrix.arch }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PUBLISH_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          image="ghcr.io/${owner}/${BUILD_ARCH}-addon-netadmin"
+          base="$(ruby -ryaml -e 'puts YAML.load_file("home-assistant/netadmin/build.yaml")["build_from"][ENV["BUILD_ARCH"]]')"
+          trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
+          printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          docker build --pull -f home-assistant/netadmin/Dockerfile \
+            --build-arg "BUILD_FROM=$base" \
+            --build-arg "BUILD_VERSION=$PUBLISH_VERSION" \
+            --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --label "org.opencontainers.image.version=$PUBLISH_VERSION" \
+            --label 'org.opencontainers.image.licenses=MIT' \
+            -t "$image:$PUBLISH_VERSION" -t "$image:sha-$GITHUB_SHA" .
+          bash Tools/smoke_addon.sh "$image:$PUBLISH_VERSION"
+          docker push "$image:$PUBLISH_VERSION"
+          docker push "$image:sha-$GITHUB_SHA"
+          echo "Published $image:$PUBLISH_VERSION and $image:sha-$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+
+  manifests:
+    name: Combine manifests
+    needs: [prepare, publish]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    env:
+      PUBLISH_VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - name: 🔑 Log in to GHCR
+        env:
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+
+      - name: 🧾 Create multi-arch manifests
+        run: |
+          set -euo pipefail
+          base="ghcr.io/${GITHUB_REPOSITORY,,}"
+          prerelease=false
+          [[ "$PUBLISH_VERSION" == *-* ]] && prerelease=true
+          for suffix in '' '-dhcp-agent' '-radius-agent'; do
+            image="${base}${suffix}"
+            sources=()
+            for arch in amd64 aarch64; do
+              sources+=("$image:sha-$GITHUB_SHA-$arch")
+            done
+            docker buildx imagetools create \
+              -t "$image:sha-$GITHUB_SHA" \
+              -t "$image:$PUBLISH_VERSION" \
+              "${sources[@]}"
+            if [[ "$prerelease" == false ]]; then
+              docker buildx imagetools create -t "$image:latest" "$image:$PUBLISH_VERSION"
+            fi
+            echo "Created multi-arch manifests for $image" >> "$GITHUB_STEP_SUMMARY"
+          done

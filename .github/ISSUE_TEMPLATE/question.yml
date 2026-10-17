@@ -1,0 +1,16 @@
+name: Question
+description: Ask a question about installing or using NetAdmin
+labels: [question, needs-triage]
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What are you trying to achieve with DNS, DHCP, RADIUS or the add-on?
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: What you have tried so far and any relevant setup details (no secrets).

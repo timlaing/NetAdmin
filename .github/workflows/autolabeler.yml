@@ -1,0 +1,23 @@
+name: Autolabeler
+
+on:
+  pull_request_target:
+
+permissions:
+  contents: read
+
+jobs:
+  autolabeler:
+    name: Autolabeler
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: release-drafter/release-drafter@978bb0b30c5ee8cdd332ced253758157150d43f0 # v7.10.0
+        with:
+          disable-releaser: true
+          config-name: autolabeler.yml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

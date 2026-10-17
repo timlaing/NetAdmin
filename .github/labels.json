@@ -1,0 +1,132 @@
+[
+  {
+    "name": "bug",
+    "color": "d73a4a",
+    "description": "Something isn't working"
+  },
+  {
+    "name": "bugfix",
+    "color": "89F4D5",
+    "description": ""
+  },
+  {
+    "name": "containers",
+    "color": "0DB7ED",
+    "description": "Container builds, images and runtime"
+  },
+  {
+    "name": "dependencies",
+    "color": "0366d6",
+    "description": "Pull requests that update a dependency file"
+  },
+  {
+    "name": "dhcp",
+    "color": "C2E0C6",
+    "description": "ISC DHCPD reservations, leases and the DHCP agent"
+  },
+  {
+    "name": "dns",
+    "color": "BFD4F2",
+    "description": "Bind zones, records and the DNS service"
+  },
+  {
+    "name": "documentation",
+    "color": "0075ca",
+    "description": "Improvements or additions to documentation"
+  },
+  {
+    "name": "duplicate",
+    "color": "cfd3d7",
+    "description": "This issue or pull request already exists"
+  },
+  {
+    "name": "enhancement",
+    "color": "a2eeef",
+    "description": "New feature or request"
+  },
+  {
+    "name": "github_actions",
+    "color": "000000",
+    "description": "Pull requests that update GitHub Actions code"
+  },
+  {
+    "name": "good first issue",
+    "color": "7057ff",
+    "description": "Good for newcomers"
+  },
+  {
+    "name": "help wanted",
+    "color": "008672",
+    "description": "Extra attention is needed"
+  },
+  {
+    "name": "home-assistant",
+    "color": "41BDF5",
+    "description": "Home Assistant add-on packaging, ingress and setup wizard"
+  },
+  {
+    "name": "invalid",
+    "color": "e4e669",
+    "description": "This doesn't seem right"
+  },
+  {
+    "name": "maintenance",
+    "color": "C5DEF5",
+    "description": "Tooling, CI and repository upkeep"
+  },
+  {
+    "name": "major",
+    "color": "b60205",
+    "description": "Breaking change requiring a major release"
+  },
+  {
+    "name": "needs-triage",
+    "color": "0e8a16",
+    "description": "Issue needs initial triage"
+  },
+  {
+    "name": "pinned",
+    "color": "1d76db",
+    "description": "Important issue, pinned"
+  },
+  {
+    "name": "python",
+    "color": "2b67c6",
+    "description": "Pull requests that update python code"
+  },
+  {
+    "name": "question",
+    "color": "d876e3",
+    "description": "Further information is requested"
+  },
+  {
+    "name": "radius",
+    "color": "F9D0C4",
+    "description": "FreeRADIUS users, clients and the RADIUS agent"
+  },
+  {
+    "name": "security",
+    "color": "b60205",
+    "description": "Security related"
+  },
+  {
+    "name": "skip-changelog",
+    "color": "24292f",
+    "description": "Exclude this PR from release notes"
+  },
+  {
+    "name": "stale",
+    "color": "ededed",
+    "description": ""
+  },
+  {
+    "name": "testing",
+    "color": "BFDADC",
+    "description": "Automated test coverage and validation"
+  },
+  {
+    "name": "wontfix",
+    "color": "ffffff",
+    "description": "This will not be worked on"
+  }
+]

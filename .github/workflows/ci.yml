@@ -1,0 +1,143 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  checks:
+    name: Lint and type checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install development dependencies
+        run: python -m pip install -e '.[dev]'
+      - name: Ruff lint
+        run: python -m ruff check .
+      - name: Ruff format
+        run: python -m ruff format --check .
+      - name: mypy (strict)
+        run: python -m mypy
+      - name: pylint
+        run: python -m pylint netadmin
+
+  tests:
+    name: Python ${{ matrix.python }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.12', '3.13', '3.14']
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install development dependencies
+        run: python -m pip install -e '.[dev]'
+      - name: Run tests with coverage gate
+        run: |
+          python -m pip check
+          python -m pytest -q
+          python -m compileall -q netadmin
+      - name: Check patch whitespace
+        run: git show --format= --check HEAD
+
+  container:
+    name: ${{ matrix.flavour }} ${{ matrix.arch }} smoke
+    needs: [checks, tests]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - flavour: app
+            arch: amd64
+            runner: ubuntu-24.04
+            dockerfile: Dockerfile
+            image: netadmin:test
+            smoke: Tools/smoke_app.sh
+          - flavour: app
+            arch: aarch64
+            runner: ubuntu-24.04-arm
+            dockerfile: Dockerfile
+            image: netadmin:test
+            smoke: Tools/smoke_app.sh
+          - flavour: dhcp-agent
+            arch: amd64
+            runner: ubuntu-24.04
+            dockerfile: docker/Dockerfile.dhcp-agent
+            image: netadmin-dhcp-agent:test
+            smoke: Tools/smoke_agent.sh
+          - flavour: dhcp-agent
+            arch: aarch64
+            runner: ubuntu-24.04-arm
+            dockerfile: docker/Dockerfile.dhcp-agent
+            image: netadmin-dhcp-agent:test
+            smoke: Tools/smoke_agent.sh
+          - flavour: radius-agent
+            arch: amd64
+            runner: ubuntu-24.04
+            dockerfile: docker/Dockerfile.radius-agent
+            image: netadmin-radius-agent:test
+            smoke: Tools/smoke_agent.sh
+          - flavour: radius-agent
+            arch: aarch64
+            runner: ubuntu-24.04-arm
+            dockerfile: docker/Dockerfile.radius-agent
+            image: netadmin-radius-agent:test
+            smoke: Tools/smoke_agent.sh
+          - flavour: addon
+            arch: amd64
+            runner: ubuntu-24.04
+            dockerfile: home-assistant/netadmin/Dockerfile
+            image: netadmin-addon:test
+            smoke: Tools/smoke_addon.sh
+          - flavour: addon
+            arch: aarch64
+            runner: ubuntu-24.04-arm
+            dockerfile: home-assistant/netadmin/Dockerfile
+            image: netadmin-addon:test
+            smoke: Tools/smoke_addon.sh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build image
+        env:
+          BUILD_DOCKERFILE: ${{ matrix.dockerfile }}
+          BUILD_IMAGE: ${{ matrix.image }}
+          BUILD_ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          args=()
+          if [[ "$BUILD_DOCKERFILE" == home-assistant/* ]]; then
+            base="$(ruby -ryaml -e 'puts YAML.load_file("home-assistant/netadmin/build.yaml")["build_from"][ENV["BUILD_ARCH"]]')"
+            args+=(--build-arg "BUILD_FROM=$base")
+          fi
+          docker build --pull -f "$BUILD_DOCKERFILE" "${args[@]}" -t "$BUILD_IMAGE" .
+      - name: Smoke test image
+        env:
+          SMOKE_SCRIPT: ${{ matrix.smoke }}
+          BUILD_IMAGE: ${{ matrix.image }}
+        run: bash "$SMOKE_SCRIPT" "$BUILD_IMAGE"

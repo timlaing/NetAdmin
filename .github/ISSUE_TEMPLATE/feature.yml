@@ -1,0 +1,16 @@
+name: Feature request
+description: Suggest an improvement to NetAdmin
+labels: [enhancement, needs-triage]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: A clear description of the problem or capability, covering DNS, DHCP, RADIUS or the Home Assistant add-on.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Existing workarounds, manual processes or other tools you considered.

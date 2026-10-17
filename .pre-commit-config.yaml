@@ -1,13 +1,24 @@
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.9.10
+    rev: v0.16.4
     hooks:
-      - id: ruff
+      - id: ruff-check
         args: [--fix]
       - id: ruff-format
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.15.0
+    rev: v1.20.2
     hooks:
       - id: mypy
-        additional_dependencies: [types-Flask]
-
+        # Run bare `mypy` (per the pyproject packages config) instead of on
+        # filename args, so per-module overrides resolve consistently. The
+        # runtime dependencies mirror pyproject.toml because the hook runs in
+        # an isolated environment.
+        pass_filenames: false
+        additional_dependencies:
+          - Flask>=3.1,<4
+          - Flask-WTF>=1.2,<2
+          - WTForms>=3.2,<4
+          - dnspython>=2.7,<3
+          - httpx>=0.28,<1
+          - argon2-cffi>=23.1,<26
+          - types-WTForms>=3.2

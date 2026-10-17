@@ -1,0 +1,31 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    labels: [dependencies, github_actions]
+    groups:
+      codeql-actions:
+        patterns: [github/codeql-action/*]
+      release-drafter-actions:
+        patterns: [release-drafter/release-drafter*]
+    open-pull-requests-limit: 5
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    labels: [dependencies, python]
+    groups:
+      python-dependencies:
+        patterns: ['*']
+    open-pull-requests-limit: 5
+  - package-ecosystem: docker
+    directories: [/, /docker, /home-assistant/netadmin]
+    schedule:
+      interval: weekly
+    labels: [dependencies, containers]
+    groups:
+      container-bases:
+        patterns: ['*']
+    open-pull-requests-limit: 5

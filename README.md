@@ -46,3 +46,22 @@ mypy
 pylint netadmin
 pytest
 ```
+
+## CI and published containers
+
+GitHub Actions runs the same checks plus container smoke tests on every push and
+pull request (`.github/workflows/ci.yml`, `lint.yml`, `pre-commit.yml`, `codeql.yml`).
+The smoke tests boot each image and verify real behaviour: login and Secure
+cookies for the app, mTLS plus bearer-token enforcement for the agents, and
+ingress-only access plus wizard locking for the add-on (`Tools/smoke_*.sh`).
+
+Pushing a `vX.Y.Z` tag publishes multi-arch images to GHCR after verify and lint
+gates pass (`.github/workflows/publish.yml`):
+
+- `ghcr.io/timlaing/netadmin` — web application
+- `ghcr.io/timlaing/netadmin-dhcp-agent` — restricted DHCP agent
+- `ghcr.io/timlaing/netadmin-radius-agent` — restricted RADIUS agent
+- `ghcr.io/timlaing/<arch>-addon-netadmin` — Home Assistant add-on
+
+The tag must match `home-assistant/netadmin/config.yaml`'s `version`. Release
+notes are drafted automatically from conventional commits by release-drafter.

@@ -76,5 +76,9 @@ is `kill -HUP 1`.
   Mount them in compose, never commit or copy their contents into tracked files.
 - `home-assistant/` is an HA add-on wrapper; its `run.sh` sources `/config/netadmin.env`
   (never committed) before starting gunicorn.
-- No CI workflows exist in this repo — the local check sequence above is the gate.
-- Commit messages follow conventional commits (`feat:`, `fix:`, `test:`).
+- No CI workflows existed before `.github/workflows/`; the local check sequence above is
+  still the fast gate. CI additionally builds every image and runs the `Tools/smoke_*.sh`
+  smoke tests, so container-affecting changes (Dockerfiles, env handling, `wsgi.py`,
+  `setup.py`) must pass those before a `v*` tag can publish to GHCR.
+- Commit messages follow conventional commits (`feat:`, `fix:`, `test:`) — release-drafter
+  and the autolabeler depend on them.

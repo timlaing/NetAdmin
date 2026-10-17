@@ -1,0 +1,35 @@
+name: Stale
+
+on:
+  schedule:
+    - cron: '33 3 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  stale:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/stale@4391f3da665fdf50b6810c1a66712fb9ba21aa93 # v11
+        with:
+          days-before-stale: 60
+          days-before-close: 14
+          stale-issue-label: 'stale'
+          stale-pr-label: 'stale'
+          stale-issue-message: >
+            This issue has been automatically marked as stale because it has not had
+            recent activity. It will be closed in 14 days if no further activity occurs.
+            Thank you for your contributions.
+          stale-pr-message: >
+            This pull request has been automatically marked as stale because it has not had
+            recent activity. It will be closed in 14 days if no further activity occurs.
+            Thank you for your contributions.
+          close-issue-message: >
+            Closing this issue as stale. Feel free to reopen it if this is still relevant.
+          close-pr-message: >
+            Closing this pull request as stale. Feel free to reopen it if this is still relevant.
