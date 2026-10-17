@@ -27,9 +27,12 @@ Restricted DHCP and RADIUS agents validate and atomically install file-backed ch
 
 The cookie is always `Secure`, so plain HTTP is intentionally unsuitable for login.
 
-For Home Assistant, place secret environment assignments and the three agent certificate
-paths in `/config/netadmin.env`; this file is loaded by the app but never included in its
-repository or options schema.
+For Home Assistant, open the add-on through its ingress (sidebar) panel on first run: a
+setup wizard generates the secrets, hashes the emergency root password and writes
+`/config/netadmin.env` (mode 0640). Restart the add-on to load it. The wizard is only
+reachable through ingress and locks itself once configured; the file is never included in
+the repository or options schema. To migrate an existing pre-NetAdmin stack, run
+`scripts/cutover.sh` from a repo checkout on the server.
 
 ## Development
 

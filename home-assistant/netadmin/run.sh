@@ -1,5 +1,6 @@
 #!/usr/bin/with-contenv bashio
 set -euo pipefail
+export NETADMIN_ADDON=1
 if [[ -r /config/netadmin.env ]]; then
   set -a
   source /config/netadmin.env

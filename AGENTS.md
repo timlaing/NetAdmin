@@ -35,6 +35,14 @@ Three deployables from one package, wired in `docker-compose.yml`:
 - `netadmin/services/` — shared logic: `dns.py` talks to Bind via AXFR + RFC 2136
   (dnspython), `dhcp_files.py`/`radius_files.py` parse/render service configs,
   `agents.py` is the web app's mTLS HTTP client.
+- `netadmin/setup.py` — first-run wizard for the HA add-on. `wsgi.py::build_app`
+  falls back to it only when `NETADMIN_ADDON=1` and required env is missing;
+  routes 404 unless the request carries HA's `X-Ingress-Path` header. It writes
+  `/config/netadmin.env` (override: `NETADMIN_ENV_FILE`) with mode 0640.
+- `scripts/cutover.sh` — one-shot migration from the pre-NetAdmin stack; builds
+  first while old services still run, then stops old, syncs leases/zones (incl.
+  `.jnl`), and starts the new stack with health checks. Keeps old containers for
+  rollback. Run it on the server from a repo checkout, not locally.
 
 Flow: web app never writes service config itself; it calls the agents, which validate a
 candidate file (e.g. `dhcpd -t`, `freeradius -C`), atomically install it, and roll back
