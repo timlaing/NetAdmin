@@ -1,7 +1,9 @@
 name: Autolabeler
 
+# Metadata-only: never check out or execute code from the PR branch.
 on:
   pull_request_target:
+    types: [opened, reopened, synchronize, edited, ready_for_review]
 
 permissions:
   contents: read
@@ -15,9 +17,8 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-      - uses: release-drafter/release-drafter@978bb0b30c5ee8cdd332ced253758157150d43f0 # v7.10.0
-        with:
-          disable-releaser: true
-          config-name: autolabeler.yml
+      # Dedicated autolabeler sub-action; reads the autolabeler rules
+      # embedded in .github/release-drafter.yml (metadata-only).
+      - uses: release-drafter/release-drafter/autolabeler@978bb0b30c5ee8cdd332ced253758157150d43f0 # v7.10.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
