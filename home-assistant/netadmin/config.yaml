@@ -5,10 +5,8 @@ description: Secure Bind, DHCP and RADIUS administration
 url: https://github.com/timlaing/NetAdmin
 arch: [amd64, aarch64]
 startup: services
-boot: auto
 init: false
 ingress: true
-ingress_port: 8099
 panel_icon: mdi:lan
 panel_admin: false
 map: [addon_config:rw]

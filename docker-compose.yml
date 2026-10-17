@@ -151,14 +151,14 @@ services:
       - "./freeradius/raddb/clients.conf:/etc/raddb/clients.conf"
       - "./freeradius/raddb/netadmin-clients.conf:/etc/raddb/netadmin-clients.conf"
       - "radius-certs:/etc/raddb/certs"
-    command: 
+    command:
       - "-X"
 
   whatsupdocker:
     image: getwud/wud
     container_name: wud
     hostname: wud
-    restart: unless-stopped     
+    restart: unless-stopped
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     ports:
@@ -168,9 +168,9 @@ services:
       interval: 10s
       timeout: 10s
       retries: 3
-      start_period: 10s      
+      start_period: 10s
     environment:
-      - WUD_TRIGGER_DOCKER_LOCAL_PRUNE=true            
+      - WUD_TRIGGER_DOCKER_LOCAL_PRUNE=true
 
 volumes:
   netadmin-data:

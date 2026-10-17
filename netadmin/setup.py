@@ -115,13 +115,17 @@ def create_setup_app() -> Flask:
         WTF_CSRF_TIME_LIMIT=None,
         MAX_CONTENT_LENGTH=65_536,
     )
-    CSRFProtect(app)
 
+    # Registered before CSRFProtect: before_request hooks run in registration
+    # order, so non-ingress requests must 404 here rather than surface the
+    # CSRF layer's 400 and reveal that a route exists.
     @app.before_request
     def guard() -> Any:
         """Serve the wizard only through Home Assistant ingress."""
         if not request.headers.get("X-Ingress-Path"):
             abort(404)
+
+    CSRFProtect(app)
 
     @app.route("/", methods=["GET", "POST"])
     def step1() -> Any:

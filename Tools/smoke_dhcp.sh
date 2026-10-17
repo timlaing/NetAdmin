@@ -98,7 +98,9 @@ docker run --rm --mount "type=volume,source=$volume,target=/out" --entrypoint sh
   'printf "key \"rndc-key\" {\n\talgorithm hmac-sha256;\n\tsecret \"c21tb2tlLXNlY3JldC12YWx1ZS1mM3h0dw==\";\n};\n" > /out/rndc.key'
 wait_log "installed dns key" 15 || fail "key was never installed"
 [[ -f "$cfg/rndc.key" ]] || fail "key not copied into the bind-mounted /etc/dhcp tree"
-grep -q 'secret "c21tb2tlLXNlY3JldC12YWx1ZS1mM3h0dw=="' "$cfg/rndc.key" \
+# Compared inside the container: the entrypoint writes the key as root, and
+# on Linux runners that file is not readable by the unprivileged CI user.
+docker exec "$name" grep -q 'secret "c21tb2tlLXNlY3JldC12YWx1ZS1mM3h0dw=="' /etc/dhcp/rndc.key \
   || fail "installed key has the wrong contents"
 docker exec "$name" cmp /etc/dhcp/rndc.key /run/rndc/rndc.key \
   || fail "installed key differs from the shared key"
