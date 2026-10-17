@@ -71,6 +71,8 @@ good-names = ["P", "R"]
 [tool.pylint.design]
 max-args = 8
 max-positional-arguments = 8
+max-locals = 25
+max-statements = 80
 
 [[tool.mypy.overrides]]
 module = ["flask_wtf", "flask_wtf.*"]

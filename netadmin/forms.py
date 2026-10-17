@@ -70,3 +70,13 @@ class RadiusUserForm(FlaskForm):
     role = SelectField("Role", choices=[("standard", "Standard"), ("admin", "Administrator")])
     disabled = BooleanField("Disabled")
     submit = SubmitField("Save user")
+
+
+class RadiusClientForm(FlaskForm):
+    """RADIUS client mutation form."""
+
+    name = StringField("Name", validators=[DataRequired(), Regexp(r"^[A-Za-z0-9_.-]+$")])
+    address = StringField("IP address or CIDR", validators=[DataRequired(), Length(max=128)])
+    shortname = StringField("Short name", validators=[DataRequired(), Length(max=128)])
+    secret = PasswordField("Shared secret", validators=[DataRequired(), Length(min=16, max=1024)])
+    submit = SubmitField("Save client")

@@ -23,6 +23,7 @@ from netadmin.forms import (
     DnsRecordForm,
     LoginForm,
     PasswordForm,
+    RadiusClientForm,
     RadiusUserForm,
     ReservationForm,
 )
@@ -193,7 +194,64 @@ def radius_index() -> Any:
         _audit("radius.user.upsert", form.username.data or "")
         flash("RADIUS user saved.", "success")
         return redirect(url_for("web.radius_index"))
-    return render_template("radius.html", form=form, users=client.get("users"))
+    return render_template(
+        "radius.html",
+        form=form,
+        client_form=RadiusClientForm(),
+        users=client.get("users"),
+        clients=client.get("clients"),
+        migration=client.get("migration"),
+    )
+
+
+@web.route("/radius/users/delete", methods=["POST"])
+@admin_required
+def radius_user_delete() -> Any:
+    """Delete a NetAdmin-managed RADIUS user."""
+    username = request.form.get("username", "")
+    cast(AgentClient, extension("netadmin_radius")).post("users/delete", {"username": username})
+    _audit("radius.user.delete", username)
+    return redirect(url_for("web.radius_index"))
+
+
+@web.route("/radius/clients", methods=["POST"])
+@admin_required
+def radius_client_save() -> Any:
+    """Create or update a managed RADIUS client."""
+    form = RadiusClientForm()
+    if form.validate_on_submit():
+        cast(AgentClient, extension("netadmin_radius")).post(
+            "clients",
+            {
+                "name": form.name.data,
+                "address": form.address.data,
+                "shortname": form.shortname.data,
+                "secret": form.secret.data,
+            },
+        )
+        _audit("radius.client.upsert", form.name.data or "")
+        flash("RADIUS client saved.", "success")
+    return redirect(url_for("web.radius_index"))
+
+
+@web.route("/radius/clients/delete", methods=["POST"])
+@admin_required
+def radius_client_delete() -> Any:
+    """Delete a managed RADIUS client."""
+    name = request.form.get("name", "")
+    cast(AgentClient, extension("netadmin_radius")).post("clients/delete", {"name": name})
+    _audit("radius.client.delete", name)
+    return redirect(url_for("web.radius_index"))
+
+
+@web.route("/radius/migrate", methods=["POST"])
+@admin_required
+def radius_migrate() -> Any:
+    """Hash legacy passwords and install explicit role attributes."""
+    result = cast(AgentClient, extension("netadmin_radius")).post("migration", {})
+    _audit("radius.users.migrate", str(result.get("count", 0)))
+    flash(f"Migrated {result.get('count', 0)} RADIUS users.", "success")
+    return redirect(url_for("web.radius_index"))
 
 
 @web.route("/password", methods=["GET", "POST"])

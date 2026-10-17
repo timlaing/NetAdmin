@@ -45,9 +45,16 @@ services:
     env_file: .env
     environment:
       RADIUS_MANAGED_FILE: /etc/raddb/mods-config/files/netadmin
+      RADIUS_AUTHORIZE_FILE: /etc/raddb/mods-config/files/authorize
+      RADIUS_CLIENTS_FILE: /etc/raddb/clients.conf
+      RADIUS_MANAGED_CLIENTS_FILE: /etc/raddb/netadmin-clients.conf
+      RADIUS_ADMIN_POOLS: pool-parent
       RADIUS_RELOAD_COMMAND: kill -HUP 1
     volumes:
       - "./freeradius/raddb/mods-config/files/netadmin:/etc/raddb/mods-config/files/netadmin:rw"
+      - "./freeradius/raddb/mods-config/files/authorize:/etc/raddb/mods-config/files/authorize:rw"
+      - "./freeradius/raddb/clients.conf:/etc/raddb/clients.conf:ro"
+      - "./freeradius/raddb/netadmin-clients.conf:/etc/raddb/netadmin-clients.conf:rw"
 
   dhcp:
     build:
@@ -119,6 +126,7 @@ services:
       - "./freeradius/raddb/mods-config/files/dhcp:/etc/raddb/mods-config/files/dhcp"
       - "./freeradius/raddb/mods-available/eap:/etc/raddb/mods-available/eap"
       - "./freeradius/raddb/clients.conf:/etc/raddb/clients.conf"
+      - "./freeradius/raddb/netadmin-clients.conf:/etc/raddb/netadmin-clients.conf"
     command: 
       - "-X"
 
