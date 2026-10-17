@@ -52,7 +52,7 @@ strict = true
 packages = ["netadmin"]
 
 [tool.pytest.ini_options]
-addopts = "--cov=netadmin --cov-report=term-missing --cov-fail-under=60"
+addopts = "--cov=netadmin --cov-report=term-missing --cov-fail-under=80"
 testpaths = ["tests"]
 
 [tool.pylint.main]

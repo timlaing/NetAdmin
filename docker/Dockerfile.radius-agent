@@ -1,5 +1,5 @@
 FROM python:3.12.11-alpine3.22
-RUN apk add --no-cache freeradius freeradius-utils libxcrypt
+RUN apk add --no-cache freeradius freeradius-utils openssl
 WORKDIR /app
 COPY pyproject.toml /app/
 COPY netadmin /app/netadmin
