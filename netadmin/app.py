@@ -36,6 +36,11 @@ from netadmin.store import Store
 
 web = Blueprint("web", __name__)
 
+# Endpoint names for url_for(); constants keep each literal in a single place.
+DNS_INDEX = "web.dns_index"
+DHCP_INDEX = "web.dhcp_index"
+RADIUS_INDEX = "web.radius_index"
+
 
 def _settings() -> Settings:
     return cast(Settings, extension("netadmin_settings"))
@@ -138,7 +143,7 @@ def dns_save() -> Any:
         flash("DNS record saved.", "success")
     else:
         flash("Invalid DNS record.", "danger")
-    return redirect(url_for("web.dns_index", zone=form.zone.data))
+    return redirect(url_for(DNS_INDEX, zone=form.zone.data))
 
 
 @web.route("/dns/records/delete", methods=["POST"])
@@ -152,7 +157,7 @@ def dns_delete() -> Any:
         )
         _audit("dns.delete", f"{form.name.data}.{form.zone.data}/{form.record_type.data}")
         flash("DNS record deleted.", "success")
-    return redirect(url_for("web.dns_index", zone=form.zone.data))
+    return redirect(url_for(DNS_INDEX, zone=form.zone.data))
 
 
 @web.route("/dns/rpi", methods=["POST"])
@@ -170,7 +175,7 @@ def dns_add_rpi() -> Any:
         )
         _audit("dns.rpi.create", f"{form.hostname.data}/{form.address.data}")
         flash("Forward and reverse records created.", "success")
-    return redirect(url_for("web.dns_index", zone=form.forward_zone.data))
+    return redirect(url_for(DNS_INDEX, zone=form.forward_zone.data))
 
 
 @web.route("/dhcp", methods=["GET", "POST"])
@@ -186,7 +191,7 @@ def dhcp_index() -> Any:
         )
         _audit("dhcp.reservation.upsert", form.name.data or "")
         flash("Reservation saved.", "success")
-        return redirect(url_for("web.dhcp_index"))
+        return redirect(url_for(DHCP_INDEX))
     return render_template(
         "dhcp.html",
         form=form,
@@ -204,7 +209,7 @@ def dhcp_delete() -> Any:
     name = request.form.get("name", "")
     cast(AgentClient, extension("netadmin_dhcp")).post("reservations/delete", {"name": name})
     _audit("dhcp.reservation.delete", name)
-    return redirect(url_for("web.dhcp_index"))
+    return redirect(url_for(DHCP_INDEX))
 
 
 @web.route("/dhcp/configuration", methods=["POST"])
@@ -230,7 +235,7 @@ def dhcp_configuration_save() -> Any:
         )
         _audit("dhcp.subnet.update", form.network.data or "")
         flash("DHCP subnet configuration updated.", "success")
-    return redirect(url_for("web.dhcp_index"))
+    return redirect(url_for(DHCP_INDEX))
 
 
 @web.route("/dhcp/export/kea", methods=["GET"])
@@ -258,7 +263,7 @@ def radius_index() -> Any:
         )
         _audit("radius.user.upsert", form.username.data or "")
         flash("RADIUS user saved.", "success")
-        return redirect(url_for("web.radius_index"))
+        return redirect(url_for(RADIUS_INDEX))
     return render_template(
         "radius.html",
         form=form,
@@ -276,7 +281,7 @@ def radius_user_delete() -> Any:
     username = request.form.get("username", "")
     cast(AgentClient, extension("netadmin_radius")).post("users/delete", {"username": username})
     _audit("radius.user.delete", username)
-    return redirect(url_for("web.radius_index"))
+    return redirect(url_for(RADIUS_INDEX))
 
 
 @web.route("/radius/clients", methods=["POST"])
@@ -296,7 +301,7 @@ def radius_client_save() -> Any:
         )
         _audit("radius.client.upsert", form.name.data or "")
         flash("RADIUS client saved.", "success")
-    return redirect(url_for("web.radius_index"))
+    return redirect(url_for(RADIUS_INDEX))
 
 
 @web.route("/radius/clients/delete", methods=["POST"])
@@ -306,7 +311,7 @@ def radius_client_delete() -> Any:
     name = request.form.get("name", "")
     cast(AgentClient, extension("netadmin_radius")).post("clients/delete", {"name": name})
     _audit("radius.client.delete", name)
-    return redirect(url_for("web.radius_index"))
+    return redirect(url_for(RADIUS_INDEX))
 
 
 @web.route("/radius/migrate", methods=["POST"])
@@ -316,7 +321,7 @@ def radius_migrate() -> Any:
     result = cast(AgentClient, extension("netadmin_radius")).post("migration", {})
     _audit("radius.users.migrate", str(result.get("count", 0)))
     flash(f"Migrated {result.get('count', 0)} RADIUS users.", "success")
-    return redirect(url_for("web.radius_index"))
+    return redirect(url_for(RADIUS_INDEX))
 
 
 @web.route("/password", methods=["GET", "POST"])

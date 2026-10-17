@@ -28,7 +28,10 @@ MANAGED_KEYS = (
 
 def env_path() -> Path:
     """Path of the environment file the add-on sources at startup."""
-    return Path(os.getenv("NETADMIN_ENV_FILE", "/config/netadmin.env"))
+    candidate = Path(os.getenv("NETADMIN_ENV_FILE", "/config/netadmin.env"))
+    if not candidate.is_absolute() or ".." in candidate.parts:
+        raise ValueError(f"NETADMIN_ENV_FILE must be absolute and free of '..': {candidate}")
+    return candidate
 
 
 def _is_configured() -> bool:
@@ -107,6 +110,70 @@ class Step3Form(FlaskForm):  # type: ignore[misc]
     )
 
 
+_TEMPLATE = "setup.html"
+
+
+def _render(step: Any, **context: Any) -> Any:
+    """Render the setup wizard for one step."""
+    return render_template(_TEMPLATE, step=step, **context)
+
+
+def step1() -> Any:
+    """Create the emergency root account."""
+    if _is_configured():
+        return _render("done")
+    form = Step1Form()
+    if form.validate_on_submit():
+        session["setup"] = {"hash": PasswordHasher().hash(form.password.data or "")}
+        return _render(2, form=Step2Form())
+    return _render(1, form=form)
+
+
+def step2() -> Any:
+    """Collect service endpoints and secrets."""
+    if "setup" not in session:
+        return _render(1, form=Step1Form())
+    form = Step2Form()
+    if form.validate_on_submit():
+        setup = session["setup"]
+        setup.update(
+            dns_server=(form.dns_server.data or "").strip(),
+            dns_zones=(form.dns_zones.data or "").strip(),
+            dhcp_agent_url=(form.dhcp_agent_url.data or "").strip(),
+            radius_agent_url=(form.radius_agent_url.data or "").strip(),
+            radius_secret=(form.radius_secret.data or "").strip() or secrets.token_hex(16),
+            tsig_secret=(form.tsig_secret.data or "").strip(),
+        )
+        session["setup"] = setup
+        return _render(3, form=Step3Form(), values=setup)
+    return _render(2, form=form)
+
+
+def apply() -> Any:
+    """Write the environment file and instruct the operator to restart."""
+    setup = session.get("setup")
+    if not setup or _is_configured():
+        return _render(1, form=Step1Form())
+    form = Step3Form()
+    if not form.validate_on_submit():
+        return _render(3, form=form, values=setup), 400
+    write_env_file(
+        {
+            "NETADMIN_SECRET_KEY": secrets.token_hex(32),
+            "NETADMIN_AGENT_TOKEN": secrets.token_hex(32),
+            "NETADMIN_ROOT_PASSWORD_HASH": setup["hash"],
+            "NETADMIN_RADIUS_SECRET": setup["radius_secret"],
+            "NETADMIN_DNS_TSIG_SECRET": setup.get("tsig_secret", ""),
+            "NETADMIN_DNS_SERVER": setup["dns_server"],
+            "NETADMIN_DNS_ZONES": setup["dns_zones"],
+            "NETADMIN_DHCP_AGENT_URL": setup["dhcp_agent_url"],
+            "NETADMIN_RADIUS_AGENT_URL": setup["radius_agent_url"],
+        }
+    )
+    session.clear()
+    return _render("done")
+
+
 def create_setup_app() -> Flask:
     """Create the unconfigured add-on app that only serves the setup wizard."""
     app = Flask(__name__)
@@ -127,60 +194,7 @@ def create_setup_app() -> Flask:
 
     CSRFProtect(app)
 
-    @app.route("/", methods=["GET", "POST"])
-    def step1() -> Any:
-        """Create the emergency root account."""
-        if _is_configured():
-            return render_template("setup.html", step="done")
-        form = Step1Form()
-        if form.validate_on_submit():
-            session["setup"] = {"hash": PasswordHasher().hash(form.password.data or "")}
-            return render_template("setup.html", step=2, form=Step2Form())
-        return render_template("setup.html", step=1, form=form)
-
-    @app.route("/services", methods=["GET", "POST"])
-    def step2() -> Any:
-        """Collect service endpoints and secrets."""
-        if "setup" not in session:
-            return render_template("setup.html", step=1, form=Step1Form())
-        form = Step2Form()
-        if form.validate_on_submit():
-            setup = session["setup"]
-            setup.update(
-                dns_server=(form.dns_server.data or "").strip(),
-                dns_zones=(form.dns_zones.data or "").strip(),
-                dhcp_agent_url=(form.dhcp_agent_url.data or "").strip(),
-                radius_agent_url=(form.radius_agent_url.data or "").strip(),
-                radius_secret=(form.radius_secret.data or "").strip() or secrets.token_hex(16),
-                tsig_secret=(form.tsig_secret.data or "").strip(),
-            )
-            session["setup"] = setup
-            return render_template("setup.html", step=3, form=Step3Form(), values=setup)
-        return render_template("setup.html", step=2, form=form)
-
-    @app.route("/apply", methods=["POST"])
-    def apply() -> Any:
-        """Write the environment file and instruct the operator to restart."""
-        setup = session.get("setup")
-        if not setup or _is_configured():
-            return render_template("setup.html", step=1, form=Step1Form())
-        form = Step3Form()
-        if not form.validate_on_submit():
-            return render_template("setup.html", step=3, form=form, values=setup), 400
-        write_env_file(
-            {
-                "NETADMIN_SECRET_KEY": secrets.token_hex(32),
-                "NETADMIN_AGENT_TOKEN": secrets.token_hex(32),
-                "NETADMIN_ROOT_PASSWORD_HASH": setup["hash"],
-                "NETADMIN_RADIUS_SECRET": setup["radius_secret"],
-                "NETADMIN_DNS_TSIG_SECRET": setup.get("tsig_secret", ""),
-                "NETADMIN_DNS_SERVER": setup["dns_server"],
-                "NETADMIN_DNS_ZONES": setup["dns_zones"],
-                "NETADMIN_DHCP_AGENT_URL": setup["dhcp_agent_url"],
-                "NETADMIN_RADIUS_AGENT_URL": setup["radius_agent_url"],
-            }
-        )
-        session.clear()
-        return render_template("setup.html", step="done")
-
+    app.add_url_rule("/", view_func=step1, methods=["GET", "POST"])
+    app.add_url_rule("/services", view_func=step2, methods=["GET", "POST"])
+    app.add_url_rule("/apply", view_func=apply, methods=["POST"])
     return app

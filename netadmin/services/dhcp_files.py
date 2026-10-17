@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-INCLUDE = re.compile(r'^\s*include\s+"([^"]+)"\s*;', re.MULTILINE)
+INCLUDE = re.compile(r'^[ \t]*include\s+"([^"]+)"\s*;', re.MULTILINE)
 HOST_START = re.compile(r"\bhost\s+([A-Za-z0-9_-]+)\s*\{")
 SUBNET_START = re.compile(r"\bsubnet\s+([0-9.]+)\s+netmask\s+([0-9.]+)\s*\{")
 
@@ -76,7 +76,7 @@ def subnets(text: str) -> list[dict[str, Any]]:
         ranges = [list(item) for item in re.findall(r"\brange\s+([0-9.]+)\s+([0-9.]+)\s*;", body)]
         options = {
             name: value.strip().strip('"')
-            for name, value in re.findall(r"(?m)^\s*option\s+([A-Za-z0-9_-]+)\s+([^;]+);", body)
+            for name, value in re.findall(r"(?m)^[ \t]*option\s+([A-Za-z0-9_-]+)\s+([^;]+);", body)
         }
         result.append(
             {
@@ -95,8 +95,8 @@ def update_subnet(text: str, network: str, ranges: list[list[str]], options: dic
         if match.group(1) != network:
             continue
         end, body = _block(text, match.start())
-        body = re.sub(r"(?m)^\s*range\s+[0-9.]+\s+[0-9.]+\s*;\s*\n?", "", body)
-        body = re.sub(r"(?m)^\s*option\s+[A-Za-z0-9_-]+\s+[^;]+;\s*\n?", "", body)
+        body = re.sub(r"(?m)^[ \t]*range\s+[0-9.]+\s+[0-9.]+\s*;\s*\n?", "", body)
+        body = re.sub(r"(?m)^[ \t]*option\s+[A-Za-z0-9_-]+\s+[^;]+;\s*\n?", "", body)
         insertion = "".join(f"  range {start} {finish};\n" for start, finish in ranges)
         insertion += "".join(
             f"  option {name} {value};\n" for name, value in sorted(options.items())

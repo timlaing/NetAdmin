@@ -6,10 +6,10 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass
 
-ENTRY_START = re.compile(r"^(?!\s|#)([A-Za-z0-9_.@-]+)\s+(.*)$")
+ENTRY_START = re.compile(r"^(?![\s#])([A-Za-z0-9_.@-]+)\s++(.*)$")
 PASSWORD = re.compile(r'(Cleartext-Password|Crypt-Password)\s*:=\s*"([^"]*)"')
 ROLE = re.compile(r'Filter-Id\s*:?=\s*"([^"]+)"')
-POOL = re.compile(r'Framed-Pool\s*=?\s*"([^"]+)"')
+POOL = re.compile(r'Framed-Pool\s*+=?\s*+"([^"]+)"')
 CLIENT = re.compile(r"(?ms)^client\s+([A-Za-z0-9_.-]+)\s*\{(.*?)^\}")
 
 
@@ -71,6 +71,35 @@ def parse_authorize(text: str, source: str) -> list[RadiusUser]:
     return users
 
 
+def _pool_role(block: str, admin_pools: set[str], admin_role: str, standard_role: str) -> str:
+    """Pool-derived role for a block that carries no explicit role attribute."""
+    pool = POOL.search(block)
+    return admin_role if pool and pool.group(1) in admin_pools else standard_role
+
+
+def _migrate_block(
+    block: str,
+    password_hasher: Callable[[str], str],
+    admin_pools: set[str],
+    admin_role: str,
+    standard_role: str,
+) -> tuple[str, bool]:
+    """Transform one legacy block; returns the new block and whether it changed."""
+    password = PASSWORD.search(block)
+    if not password:
+        return block, False
+    changed = block
+    if password.group(1) == "Cleartext-Password":
+        hashed = password_hasher(password.group(2))
+        changed = PASSWORD.sub(f'Crypt-Password := "{hashed}"', changed, count=1)
+    if not ROLE.search(changed):
+        role = _pool_role(changed, admin_pools, admin_role, standard_role)
+        first, separator, rest = changed.partition("\n")
+        first = f'{first.rstrip()}, Filter-Id := "{role}"'
+        changed = first + (separator + rest if separator else "\n")
+    return changed, changed != block
+
+
 def migrate_authorize(
     text: str,
     password_hasher: Callable[[str], str],
@@ -82,20 +111,10 @@ def migrate_authorize(
     migrated: list[str] = []
     output = text
     for username, block in user_blocks(text):
-        password = PASSWORD.search(block)
-        if not password:
-            continue
-        changed = block
-        if password.group(1) == "Cleartext-Password":
-            hashed = password_hasher(password.group(2))
-            changed = PASSWORD.sub(f'Crypt-Password := "{hashed}"', changed, count=1)
-        if not ROLE.search(changed):
-            pool = POOL.search(changed)
-            role = admin_role if pool and pool.group(1) in admin_pools else standard_role
-            first, separator, rest = changed.partition("\n")
-            first = f'{first.rstrip()}, Filter-Id := "{role}"'
-            changed = first + (separator + rest if separator else "\n")
-        if changed != block:
+        changed, did_change = _migrate_block(
+            block, password_hasher, admin_pools, admin_role, standard_role
+        )
+        if did_change:
             output = output.replace(block, changed, 1)
             migrated.append(username)
     return output, migrated
@@ -121,14 +140,10 @@ def migrate_to_managed(
             else password.group(2)
         )
         current_role = ROLE.search(block)
-        pool = POOL.search(block)
-        role = (
-            current_role.group(1)
-            if current_role
-            else admin_role
-            if pool and pool.group(1) in admin_pools
-            else standard_role
-        )
+        if current_role:
+            role = current_role.group(1)
+        else:
+            role = _pool_role(block, admin_pools, admin_role, standard_role)
         managed[username] = (password_hash, role, False)
         remaining = remaining.replace(block, "", 1)
     return remaining, managed
