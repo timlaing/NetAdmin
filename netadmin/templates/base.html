@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}NetAdmin{% endblock %}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="{{ url_for('static', filename='app.css') }}" rel="stylesheet">
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+  <div class="container-fluid">
+    <a class="navbar-brand fw-semibold" href="{{ url_for('web.dashboard') }}">NetAdmin</a>
+    {% if g.identity %}
+    <div class="d-flex align-items-center gap-3 text-white">
+      <span>{{ g.identity.username }} · {{ g.identity.role }}</span>
+      <form method="post" action="{{ url_for('web.logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-sm btn-outline-light">Sign out</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+</nav>
+{% if g.identity %}
+<div class="container-fluid">
+  <div class="row">
+    <aside class="col-md-2 sidebar py-4">
+      <nav class="nav flex-column gap-1">
+        <a class="nav-link" href="{{ url_for('web.dashboard') }}">Overview</a>
+        <a class="nav-link" href="{{ url_for('web.password') }}">Change password</a>
+        {% if g.identity.role == 'admin' %}
+        <a class="nav-link" href="{{ url_for('web.dns_index') }}">DNS</a>
+        <a class="nav-link" href="{{ url_for('web.dhcp_index') }}">DHCP</a>
+        <a class="nav-link" href="{{ url_for('web.radius_index') }}">RADIUS</a>
+        <a class="nav-link" href="{{ url_for('web.audit') }}">Audit</a>
+        {% endif %}
+      </nav>
+    </aside>
+    <main class="col-md-10 px-md-5 py-4">
+{% else %}
+<main class="container py-5">
+{% endif %}
+      {% for category, message in get_flashed_messages(with_categories=true) %}
+      <div class="alert alert-{{ category }}">{{ message }}</div>
+      {% endfor %}
+      {% block content %}{% endblock %}
+    </main>
+  {% if g.identity %}</div></div>{% endif %}
+</body>
+</html>

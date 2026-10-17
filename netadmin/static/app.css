@@ -1,0 +1,8 @@
+:root { --netadmin-sidebar: #f4f7fb; }
+body { background: #fbfcfe; min-height: 100vh; }
+.sidebar { background: var(--netadmin-sidebar); min-height: calc(100vh - 56px); }
+.sidebar .nav-link { border-radius: .45rem; color: #28384d; }
+.sidebar .nav-link:hover { background: #e3ebf6; }
+.login-card { max-width: 430px; }
+.password-card { max-width: 620px; }
+code { color: #334e68; }

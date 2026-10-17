@@ -1,0 +1,22 @@
+name: NetAdmin
+version: "0.1.0"
+slug: netadmin
+description: Secure Bind, DHCP and RADIUS administration
+url: https://github.com/example/netadmin
+arch: [amd64, aarch64]
+startup: services
+boot: auto
+init: false
+ingress: true
+ingress_port: 8099
+panel_icon: mdi:lan
+panel_admin: false
+map: [addon_config:rw]
+options:
+  dns_server: dns.internal
+  dhcp_agent_url: https://dhcp.internal:8081
+  radius_agent_url: https://radius.internal:8082
+schema:
+  dns_server: str
+  dhcp_agent_url: url
+  radius_agent_url: url

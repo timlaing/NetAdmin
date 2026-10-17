@@ -1,0 +1,8 @@
+FROM python:3.12-alpine
+RUN apk add --no-cache freeradius freeradius-utils libxcrypt
+WORKDIR /app
+COPY pyproject.toml /app/
+COPY netadmin /app/netadmin
+RUN pip install --no-cache-dir .
+EXPOSE 8082
+CMD ["gunicorn", "--bind", "0.0.0.0:8082", "--workers", "1", "netadmin.agents.radius:create_radius_agent()"]

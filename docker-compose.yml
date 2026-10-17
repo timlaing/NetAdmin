@@ -1,0 +1,144 @@
+services:
+
+  netadmin:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: netadmin
+    restart: unless-stopped
+    depends_on: [dns, radius, dhcp-agent, radius-agent]
+    env_file: .env
+    environment:
+      NETADMIN_DATA_DIR: /data
+      NETADMIN_DNS_SERVER: dns
+      NETADMIN_RADIUS_HOST: radius
+      NETADMIN_DHCP_AGENT_URL: http://dhcp-agent:8081
+      NETADMIN_RADIUS_AGENT_URL: http://radius-agent:8082
+    ports: ["8099:8099"]
+    volumes:
+      - netadmin-data:/data
+
+  dhcp-agent:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dhcp-agent
+    restart: unless-stopped
+    pid: service:dhcp
+    depends_on: [dhcp]
+    env_file: .env
+    environment:
+      DHCP_MAIN_CONFIG: /etc/dhcp/dhcpd.conf
+      DHCP_MANAGED_FILE: /etc/dhcp/netadmin-reservations.conf
+      DHCP_LEASES_FILE: /var/lib/dhcp/dhcpd.leases
+      DHCP_RELOAD_COMMAND: kill -HUP 1
+    volumes:
+      - "./dhcp/config:/etc/dhcp:rw"
+      - "./dhcp/leases:/var/lib/dhcp:ro"
+
+  radius-agent:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.radius-agent
+    restart: unless-stopped
+    pid: service:radius
+    depends_on: [radius]
+    env_file: .env
+    environment:
+      RADIUS_MANAGED_FILE: /etc/raddb/mods-config/files/netadmin
+      RADIUS_RELOAD_COMMAND: kill -HUP 1
+    volumes:
+      - "./freeradius/raddb/mods-config/files/netadmin:/etc/raddb/mods-config/files/netadmin:rw"
+
+  dhcp:
+    build:
+      context: dhcp
+      dockerfile: Dockerfile
+      tags:
+        - dhcpd:ubuntu
+    container_name: dhcp
+    hostname: dhcp
+    restart: unless-stopped 
+    ports:
+      - 67:67/udp
+      - 67:67/tcp
+    volumes:
+      - "./dhcp/config:/etc/dhcp/"
+      - "./dhcp/leases:/var/lib/dhcp:rw"
+      - "./dns/rndc.key:/etc/dhcp/rndc.key:ro"
+    command:
+      - "-4"
+      - "-d"
+      - "-cf"
+      - "/etc/dhcp/dhcpd.conf"
+      - "eth0"
+      - "-lf"
+      - "/var/lib/dhcp/dhcpd.leases"
+
+  dns:
+    build:
+      context: dns
+      dockerfile: Dockerfile
+      tags:
+        - bind9:alpine
+    container_name: dns
+    hostname: dns-master
+    restart: unless-stopped 
+    command:
+      - "-c"
+      - "/etc/bind/named.conf"
+      - "-4"
+    ports:
+      - "53:53/udp"
+      - "53:53/tcp"
+      - "953:953/tcp"
+    dns:
+      - 127.0.0.1
+      - 192.168.100.25
+    volumes:
+      - "./dns/named.conf:/etc/bind/named.conf"
+      - "./dns/rndc.key:/etc/bind/rndc.key"
+      - "./dns/named.ca:/var/bind/named.ca"
+      - "./dns/zones/fwd:/var/bind/fwd"
+      - "./dns/zones/rev:/var/bind/rev"
+
+  radius:
+    build:
+      context: freeradius
+      dockerfile: Dockerfile
+      tags:
+        - freeradius:alpine
+    container_name: freeradius
+    hostname: radius
+    restart: unless-stopped
+    ports:
+      - "1812:1812/udp"
+      - "1813:1813/udp"
+    volumes:
+      - "./freeradius/raddb/mods-config/files/authorize:/etc/raddb/mods-config/files/authorize"
+      - "./freeradius/raddb/mods-config/files/netadmin:/etc/raddb/mods-config/files/netadmin"
+      - "./freeradius/raddb/mods-config/files/dhcp:/etc/raddb/mods-config/files/dhcp"
+      - "./freeradius/raddb/mods-available/eap:/etc/raddb/mods-available/eap"
+      - "./freeradius/raddb/clients.conf:/etc/raddb/clients.conf"
+    command: 
+      - "-X"
+
+  whatsupdocker:
+    image: getwud/wud
+    container_name: wud
+    hostname: wud
+    restart: unless-stopped     
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - 3000:3000
+    healthcheck:
+      test: curl --fail http://localhost:${WUD_SERVER_PORT:-3000}/health || exit 1
+      interval: 10s
+      timeout: 10s
+      retries: 3
+      start_period: 10s      
+    environment:
+      - WUD_TRIGGER_DOCKER_LOCAL_PRUNE=true            
+
+volumes:
+  netadmin-data:

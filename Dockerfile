@@ -1,0 +1,10 @@
+FROM python:3.12-alpine
+RUN apk add --no-cache bind-tools freeradius-utils libstdc++
+WORKDIR /app
+COPY pyproject.toml /app/
+COPY netadmin /app/netadmin
+RUN pip install --no-cache-dir .
+RUN addgroup -S netadmin && adduser -S -G netadmin netadmin
+USER netadmin
+EXPOSE 8099
+CMD ["gunicorn", "--bind", "0.0.0.0:8099", "--workers", "1", "--access-logfile", "-", "netadmin.wsgi:app"]
