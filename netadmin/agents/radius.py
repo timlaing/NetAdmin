@@ -11,9 +11,15 @@ from typing import Any
 
 from flask import Flask, jsonify
 
-from netadmin.agents.common import atomic_validated_write, create_agent, json_object
+from netadmin.agents.common import (
+    atomic_validated_write,
+    create_agent,
+    json_object,
+    validated_transaction,
+)
 from netadmin.services.radius_files import (
     migrate_authorize,
+    migrate_to_managed,
     parse_authorize,
     parse_clients,
     render_clients,
@@ -115,6 +121,14 @@ def create_radius_agent() -> Flask:
 
         return validate
 
+    def validate_radius() -> None:
+        subprocess.run(
+            ["/usr/sbin/radiusd", "-XC"],
+            check=True,
+            capture_output=True,
+            timeout=20,
+        )
+
     @app.get("/health")
     def health() -> Any:
         return jsonify({"status": "ok"})
@@ -149,14 +163,21 @@ def create_radius_agent() -> Flask:
 
     @app.post("/migration")
     def migration_apply() -> Any:
-        migrated, names = migrate_authorize(
+        remaining, legacy_entries = migrate_to_managed(
             authorize.read_text(encoding="utf-8"),
             hash_password,
             admin_pools,
             "netadmin-admin",
             "netadmin-standard",
         )
-        atomic_validated_write(authorize, migrated, validator(authorize), reload_command)
+        entries = _entries(text())
+        entries.update(legacy_entries)
+        validated_transaction(
+            {authorize: remaining, managed: render_users(entries)},
+            validate_radius,
+            reload_command,
+        )
+        names = sorted(legacy_entries)
         return jsonify({"users": names, "count": len(names)})
 
     @app.post("/users")

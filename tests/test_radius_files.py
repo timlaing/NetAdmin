@@ -2,6 +2,7 @@
 
 from netadmin.services.radius_files import (
     migrate_authorize,
+    migrate_to_managed,
     parse_authorize,
     parse_clients,
     render_clients,
@@ -43,3 +44,15 @@ def test_client_round_trip_omits_secret() -> None:
     assert clients[0].name == "router"
     assert clients[0].address == "192.0.2.1"
     assert not hasattr(clients[0], "secret")
+
+
+def test_migration_moves_legacy_users_to_managed_entries() -> None:
+    remaining, entries = migrate_to_managed(
+        'alice Cleartext-Password := "plain"\n\tFramed-Pool = "pool-parent"\n',
+        lambda value: f"hash-{value}",
+        {"pool-parent"},
+        "netadmin-admin",
+        "netadmin-standard",
+    )
+    assert "alice" not in remaining
+    assert entries == {"alice": ("hash-plain", "netadmin-admin", False)}

@@ -101,6 +101,39 @@ def migrate_authorize(
     return output, migrated
 
 
+def migrate_to_managed(
+    text: str,
+    password_hasher: Callable[[str], str],
+    admin_pools: set[str],
+    admin_role: str,
+    standard_role: str,
+) -> tuple[str, dict[str, tuple[str, str, bool]]]:
+    """Remove file-backed users from a legacy file and return managed entries."""
+    remaining = text
+    managed: dict[str, tuple[str, str, bool]] = {}
+    for username, block in user_blocks(text):
+        password = PASSWORD.search(block)
+        if not password:
+            continue
+        password_hash = (
+            password_hasher(password.group(2))
+            if password.group(1) == "Cleartext-Password"
+            else password.group(2)
+        )
+        current_role = ROLE.search(block)
+        pool = POOL.search(block)
+        role = (
+            current_role.group(1)
+            if current_role
+            else admin_role
+            if pool and pool.group(1) in admin_pools
+            else standard_role
+        )
+        managed[username] = (password_hash, role, False)
+        remaining = remaining.replace(block, "", 1)
+    return remaining, managed
+
+
 def parse_clients(text: str) -> list[RadiusClient]:
     """Parse clients without exposing shared secrets."""
     result = []

@@ -77,6 +77,10 @@ def test_radius_agent_workflow(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
     client = create_radius_agent().test_client()
     assert client.get("/migration", headers=AUTH).get_json()["count"] == 1
     assert client.post("/migration", headers=AUTH, json={}).status_code == 200
+    assert "alice" not in authorize.read_text()
+    assert any(
+        user["username"] == "alice" for user in client.get("/users", headers=AUTH).get_json()
+    )
     response = client.post(
         "/users",
         headers=AUTH,
