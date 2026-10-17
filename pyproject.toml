@@ -12,17 +12,17 @@ dependencies = [
   "Flask-WTF>=1.2,<2",
   "WTForms>=3.2,<4",
   "dnspython>=2.7,<3",
-  "gunicorn>=23,<24",
+  "gunicorn>=23,<27",
   "httpx>=0.28,<1",
   "argon2-cffi>=23.1,<26",
 ]
 
 [project.optional-dependencies]
 dev = [
-  "mypy>=1.15,<2",
-  "pylint>=3.3,<4",
-  "pytest>=8.3,<9",
-  "pytest-cov>=6,<7",
+  "mypy>=1.15,<3",
+  "pylint>=3.3,<5",
+  "pytest>=8.3,<10",
+  "pytest-cov>=6,<8",
   "ruff>=0.9,<1",
   "types-WTForms>=3.2",
 ]
