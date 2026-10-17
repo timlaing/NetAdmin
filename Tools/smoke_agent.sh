@@ -35,6 +35,11 @@ openssl genrsa -out "$pki/client.key" 2048 2>/dev/null
 openssl req -new -key "$pki/client.key" -subj "/CN=netadmin-smoke" -out "$pki/client.csr" 2>/dev/null
 openssl x509 -req -in "$pki/client.csr" -CA "$pki/ca.crt" -CAkey "$pki/ca.key" \
   -CAcreateserial -days 2 -sha256 -out "$pki/client.crt" 2>/dev/null
+# The agent runs with --cap-drop ALL: its root user cannot traverse the
+# runner-owned 0700 temp dir or read 0600 files without CAP_DAC_OVERRIDE
+# (Docker Desktop's file sharing hides this on macOS), so open the
+# throwaway PKI up. These are ephemeral two-day smoke certificates.
+chmod -R a+rX "$pki"
 docker run -d --name "$name" --cap-drop ALL --security-opt no-new-privileges \
   --mount "type=bind,source=$pki,target=/pki,readonly" \
   -e NETADMIN_AGENT_TOKEN=smoke-test-agent-token \

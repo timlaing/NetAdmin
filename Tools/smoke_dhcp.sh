@@ -94,14 +94,13 @@ if log_has "Listening on"; then
 fi
 
 # 2. Key appears on the shared volume: install and start dhcpd.
-# Written by container root: chmod so the host-side grep below can read it as
-# the unprivileged CI user (Linux runners keep root ownership; Docker Desktop
-# on macOS maps it to the host user).
 docker run --rm --mount "type=volume,source=$volume,target=/out" --entrypoint sh "$image" -c \
-  'printf "key \"rndc-key\" {\n\talgorithm hmac-sha256;\n\tsecret \"c21tb2tlLXNlY3JldC12YWx1ZS1mM3h0dw==\";\n};\n" > /out/rndc.key && chmod 0644 /out/rndc.key'
+  'printf "key \"rndc-key\" {\n\talgorithm hmac-sha256;\n\tsecret \"c21tb2tlLXNlY3JldC12YWx1ZS1mM3h0dw==\";\n};\n" > /out/rndc.key'
 wait_log "installed dns key" 15 || fail "key was never installed"
 [[ -f "$cfg/rndc.key" ]] || fail "key not copied into the bind-mounted /etc/dhcp tree"
-grep -q 'secret "c21tb2tlLXNlY3JldC12YWx1ZS1mM3h0dw=="' "$cfg/rndc.key" \
+# Compared inside the container: the entrypoint writes the key as root, and
+# on Linux runners that file is not readable by the unprivileged CI user.
+docker exec "$name" grep -q 'secret "c21tb2tlLXNlY3JldC12YWx1ZS1mM3h0dw=="' /etc/dhcp/rndc.key \
   || fail "installed key has the wrong contents"
 docker exec "$name" cmp /etc/dhcp/rndc.key /run/rndc/rndc.key \
   || fail "installed key differs from the shared key"
