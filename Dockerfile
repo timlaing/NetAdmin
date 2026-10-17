@@ -4,7 +4,8 @@ WORKDIR /app
 COPY pyproject.toml /app/
 COPY netadmin /app/netadmin
 RUN pip install --no-cache-dir .
-RUN addgroup -S netadmin && adduser -S -G netadmin netadmin
+RUN addgroup -S netadmin && adduser -S -G netadmin netadmin \
+    && mkdir -p /data && chown netadmin:netadmin /data
 USER netadmin
 EXPOSE 8099
 CMD ["gunicorn", "--bind", "0.0.0.0:8099", "--workers", "1", "--access-logfile", "-", "netadmin.wsgi:app"]
