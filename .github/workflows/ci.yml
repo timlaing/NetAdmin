@@ -27,7 +27,7 @@ jobs:
       - name: Install locked dependencies
         run: |
           python -m pip install --only-binary :all: "uv==0.13.1"
-          uv sync --locked --extra dev
+          uv sync --locked --no-build --extra dev
       - name: Ruff lint
         run: .venv/bin/python -m ruff check .
       - name: Ruff format
@@ -57,7 +57,7 @@ jobs:
       - name: Install locked dependencies
         run: |
           python -m pip install --only-binary :all: "uv==0.13.1"
-          uv sync --locked --extra dev
+          uv sync --locked --no-build --extra dev
       - name: Run tests with coverage gate
         run: |
           .venv/bin/python -m pytest -q
