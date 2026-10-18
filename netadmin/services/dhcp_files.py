@@ -13,7 +13,7 @@ SUBNET_START = re.compile(r"\bsubnet\s+([0-9.]+)\s+netmask\s+([0-9.]+)\s*\{")
 # stay linear for the regex analyzer; blank lines directly above a directive
 # are consumed by _remove_directives, matching the old ^\s* behaviour.
 _RANGE_LINE = re.compile(r"(?m)^[ \t]*range\s+[0-9.]+\s+[0-9.]+\s*;\s*\n?")
-_OPTION_LINE = re.compile(r"(?m)^[ \t]*option\s+[A-Za-z0-9_-]+\s+[^;]+;\s*\n?")
+_OPTION_LINE = re.compile(r"(?m)^[ \t]*option\s+[A-Za-z0-9_-]+\s++[^;]*;\s*\n?")
 
 
 def _remove_directives(body: str, pattern: re.Pattern[str]) -> str:
@@ -98,7 +98,7 @@ def subnets(text: str) -> list[dict[str, Any]]:
         ranges = [list(item) for item in re.findall(r"\brange\s+([0-9.]+)\s+([0-9.]+)\s*;", body)]
         options = {
             name: value.strip().strip('"')
-            for name, value in re.findall(r"(?m)^[ \t]*option\s+([A-Za-z0-9_-]+)\s+([^;]+);", body)
+            for name, value in re.findall(r"(?m)^[ \t]*option\s+([A-Za-z0-9_-]+)\s++([^;]*);", body)
         }
         result.append(
             {
