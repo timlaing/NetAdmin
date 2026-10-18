@@ -22,19 +22,26 @@ cleanup() {
 }
 trap cleanup EXIT
 # Throwaway PKI: the agent requires client certificates signed by this CA.
+# Every certificate carries explicit X.509v3 extensions: the newer TLS stacks
+# in the updated base images (OpenSSL 3.5 via Ubuntu 25.10 / Python 3.14's
+# stricter verification) reject a CA without basicConstraints and keyUsage.
 openssl genrsa -out "$pki/ca.key" 2048 2>/dev/null
-openssl req -x509 -new -nodes -key "$pki/ca.key" -sha256 -days 2 \
-  -subj "/CN=NetAdmin smoke CA" -out "$pki/ca.crt" 2>/dev/null
+openssl req -new -key "$pki/ca.key" -subj "/CN=NetAdmin smoke CA" -out "$pki/ca.csr" 2>/dev/null
+openssl x509 -req -in "$pki/ca.csr" -signkey "$pki/ca.key" -sha256 -days 2 \
+  -extfile <(printf 'basicConstraints=critical,CA:TRUE\nkeyUsage=critical,keyCertSign,cRLSign\nsubjectKeyIdentifier=hash\n') \
+  -out "$pki/ca.crt" 2>/dev/null
 openssl genrsa -out "$pki/server.key" 2048 2>/dev/null
 openssl req -new -key "$pki/server.key" -subj "/CN=localhost" -out "$pki/server.csr" 2>/dev/null
 openssl x509 -req -in "$pki/server.csr" -CA "$pki/ca.crt" -CAkey "$pki/ca.key" \
   -CAcreateserial -days 2 -sha256 \
-  -extfile <(printf 'subjectAltName=DNS:localhost,IP:127.0.0.1\n') \
+  -extfile <(printf 'basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\nsubjectAltName=DNS:localhost,IP:127.0.0.1\nauthorityKeyIdentifier=keyid\n') \
   -out "$pki/server.crt" 2>/dev/null
 openssl genrsa -out "$pki/client.key" 2048 2>/dev/null
 openssl req -new -key "$pki/client.key" -subj "/CN=netadmin-smoke" -out "$pki/client.csr" 2>/dev/null
 openssl x509 -req -in "$pki/client.csr" -CA "$pki/ca.crt" -CAkey "$pki/ca.key" \
-  -CAcreateserial -days 2 -sha256 -out "$pki/client.crt" 2>/dev/null
+  -CAcreateserial -days 2 -sha256 \
+  -extfile <(printf 'basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature\nextendedKeyUsage=clientAuth\nauthorityKeyIdentifier=keyid\n') \
+  -out "$pki/client.crt" 2>/dev/null
 # The agent runs with --cap-drop ALL: its root user cannot traverse the
 # runner-owned 0700 temp dir or read 0600 files without CAP_DAC_OVERRIDE
 # (Docker Desktop's file sharing hides this on macOS), so open the
