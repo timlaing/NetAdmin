@@ -41,11 +41,15 @@ jobs:
         run: |
           .venv/bin/python -m pytest -q
           .venv/bin/python -m coverage xml
-      - name: Analyze and enforce quality gate
+      # Quality-gate waiting is intentionally disabled for now: SonarCloud
+      # never computes a gate verdict for this project's main-branch analyses
+      # (every branch analysis has an empty new-code period, so the gate status
+      # comes back NONE and the scanner exits 3 even with zero open issues).
+      # The public API exposes no endpoint to set the new-code period. Once a
+      # New Code period is configured in the project UI (Project -> New Code),
+      # restore -Dsonar.qualitygate.wait=true here to re-enforce the gate.
+      # PR-context gate evaluation continues via the SonarCloud app check.
+      - name: Analyze
         uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        with:
-          args: >-
-            -Dsonar.qualitygate.wait=true
-            -Dsonar.qualitygate.timeout=300
