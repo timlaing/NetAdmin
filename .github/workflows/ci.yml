@@ -24,19 +24,18 @@ jobs:
           python-version: '3.12'
           cache: pip
           cache-dependency-path: uv.lock
-      - name: Install locked development dependencies
+      - name: Install locked dependencies
         run: |
           python -m pip install --only-binary :all: "uv==0.13.1"
-          uv export --locked --no-hashes --extra dev -o requirements-ci.txt
-          python -m pip install --only-binary :all: -r requirements-ci.txt
+          uv sync --locked --extra dev
       - name: Ruff lint
-        run: python -m ruff check .
+        run: .venv/bin/python -m ruff check .
       - name: Ruff format
-        run: python -m ruff format --check .
+        run: .venv/bin/python -m ruff format --check .
       - name: mypy (strict)
-        run: python -m mypy
+        run: .venv/bin/python -m mypy
       - name: pylint
-        run: python -m pylint netadmin
+        run: .venv/bin/python -m pylint netadmin
 
   tests:
     name: Python ${{ matrix.python }}
@@ -55,16 +54,14 @@ jobs:
           python-version: ${{ matrix.python }}
           cache: pip
           cache-dependency-path: uv.lock
-      - name: Install locked development dependencies
+      - name: Install locked dependencies
         run: |
           python -m pip install --only-binary :all: "uv==0.13.1"
-          uv export --locked --no-hashes --extra dev -o requirements-ci.txt
-          python -m pip install --only-binary :all: -r requirements-ci.txt
+          uv sync --locked --extra dev
       - name: Run tests with coverage gate
         run: |
-          python -m pip check
-          python -m pytest -q
-          python -m compileall -q netadmin
+          .venv/bin/python -m pytest -q
+          .venv/bin/python -m compileall -q netadmin
       - name: Check patch whitespace
         run: git show --format= --check HEAD
 
