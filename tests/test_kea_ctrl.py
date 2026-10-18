@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from netadmin.agents.kea_ctrl import command, main
+from netadmin.agents.kea_ctrl import DEFAULT_SOCKET, command, main
 
 
 def test_command_round_trip() -> None:
@@ -42,12 +42,20 @@ def test_command_round_trip() -> None:
 def test_main_succeeds_on_zero_result(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    monkeypatch.setattr(
-        "netadmin.agents.kea_ctrl.command", lambda socket_path, request: {"result": 0}
-    )
-    monkeypatch.setattr(sys, "argv", ["kea_ctrl", "/run/kea/kea4-ctrl.sock", "config-reload"])
+    seen = {}
+
+    def fake_command(socket_path, request):  # type: ignore[no-untyped-def]
+        seen["socket"] = socket_path
+        seen["request"] = request
+        return {"result": 0}
+
+    monkeypatch.setattr("netadmin.agents.kea_ctrl.command", fake_command)
+    monkeypatch.setattr(sys, "argv", ["kea_ctrl", "config-reload"])
     main()
     assert '"result": 0' in capsys.readouterr().out
+    # The connect target is the fixed deployment socket, never argv.
+    assert seen["socket"] == DEFAULT_SOCKET
+    assert seen["request"] == {"command": "config-reload"}
 
 
 def test_main_fails_on_kea_error(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -55,7 +63,7 @@ def test_main_fails_on_kea_error(monkeypatch: pytest.MonkeyPatch) -> None:
         "netadmin.agents.kea_ctrl.command",
         lambda socket_path, request: {"result": 1, "text": "nope"},
     )
-    monkeypatch.setattr(sys, "argv", ["kea_ctrl", "/run/kea/kea4-ctrl.sock", "config-reload"])
+    monkeypatch.setattr(sys, "argv", ["kea_ctrl", "config-reload"])
     with pytest.raises(SystemExit):
         main()
 

@@ -41,7 +41,7 @@ services:
       DHCP_MAIN_CONFIG: /etc/dhcp/kea4.conf
       DHCP_MANAGED_FILE: /etc/dhcp/netadmin-reservations.json
       DHCP_LEASES_FILE: /var/lib/kea/dhcp4.leases
-      DHCP_RELOAD_COMMAND: python3 -m netadmin.agents.kea_ctrl /run/kea/kea4-ctrl.sock config-reload
+      DHCP_RELOAD_COMMAND: python3 -m netadmin.agents.kea_ctrl config-reload
     volumes:
       - "./dhcp/config:/etc/dhcp:rw"
       - "./dhcp/leases:/var/lib/kea:ro"

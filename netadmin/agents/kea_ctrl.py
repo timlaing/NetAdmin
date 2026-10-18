@@ -2,9 +2,10 @@
 
 Kea's ``unix`` control sockets speak line-delimited JSON: one request
 object per line, one reply object per line. In kea mode the agent's reload
-command is ``python3 -m netadmin.agents.kea_ctrl SOCKET config-reload``,
-which keeps ``validated_transaction``'s contract: a non-zero exit rolls the
-config change back.
+command is ``python3 -m netadmin.agents.kea_ctrl config-reload``, which
+keeps ``validated_transaction``'s contract: a non-zero exit rolls the
+config change back. The connect target is a fixed constant, never taken
+from argv (Sonar S8703: SSRF through CLI arguments).
 """
 
 from __future__ import annotations
@@ -13,6 +14,10 @@ import json
 import socket
 import sys
 from typing import Any
+
+# The control socket's location is pinned by the deployment (the compose
+# variants share the kea-run volume at /run/kea).
+DEFAULT_SOCKET = "/run/kea/kea4-ctrl.sock"
 
 
 def command(socket_path: str, request: dict[str, Any], timeout: float = 10.0) -> dict[str, Any]:
@@ -34,10 +39,10 @@ def command(socket_path: str, request: dict[str, Any], timeout: float = 10.0) ->
 
 
 def main() -> None:
-    """CLI entry point: SOCKET COMMAND, with a non-zero exit on Kea failure."""
-    if len(sys.argv) != 3:
-        raise SystemExit("usage: python3 -m netadmin.agents.kea_ctrl SOCKET COMMAND")
-    reply = command(sys.argv[1], {"command": sys.argv[2]})
+    """CLI entry point: COMMAND, with a non-zero exit on Kea failure."""
+    if len(sys.argv) != 2:
+        raise SystemExit("usage: python3 -m netadmin.agents.kea_ctrl COMMAND")
+    reply = command(DEFAULT_SOCKET, {"command": sys.argv[1]})
     print(json.dumps(reply))
     if reply.get("result", 1) != 0:
         raise SystemExit(1)
