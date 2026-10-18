@@ -91,13 +91,20 @@ assert_no_keys
 
 # 3. Fresh volume seeded from environment: synthetic CA, server (encrypted key
 #    at the stock bootstrap password), optional CA key and client material.
+#    RFC 5280-compliant extensions, matching Tools/smoke_agent.sh: newer
+#    OpenSSL stacks reject a CA without basicConstraints/keyUsage and leaves
+#    without an authority key identifier when the chain is verified.
 openssl genrsa -out "$work/ca.key" 2048 2>/dev/null
-openssl req -x509 -new -nodes -key "$work/ca.key" -sha256 -days 2 \
-  -subj "/CN=NetAdmin smoke CA" -out "$work/ca.crt" 2>/dev/null
+openssl req -new -key "$work/ca.key" -subj "/CN=NetAdmin smoke CA" -out "$work/ca.csr" 2>/dev/null
+openssl x509 -req -in "$work/ca.csr" -signkey "$work/ca.key" -sha256 -days 2 \
+  -extfile <(printf 'basicConstraints=critical,CA:TRUE\nkeyUsage=critical,keyCertSign,cRLSign\nsubjectKeyIdentifier=hash\n') \
+  -out "$work/ca.crt" 2>/dev/null
 openssl genrsa -out "$work/server.key" 2048 2>/dev/null
 openssl req -new -key "$work/server.key" -subj "/CN=smoke-server" -out "$work/server.csr" 2>/dev/null
 openssl x509 -req -in "$work/server.csr" -CA "$work/ca.crt" -CAkey "$work/ca.key" \
-  -CAcreateserial -days 2 -sha256 -out "$work/server.crt" 2>/dev/null
+  -CAcreateserial -days 2 -sha256 \
+  -extfile <(printf 'basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\nsubjectAltName=DNS:localhost\nauthorityKeyIdentifier=keyid\n') \
+  -out "$work/server.crt" 2>/dev/null
 openssl pkcs8 -topk8 -v2 aes-256-cbc -passout pass:whatever \
   -in "$work/server.key" -out "$work/server.encrypted" 2>/dev/null \
   || fail "cannot create an encrypted test key"
@@ -105,7 +112,9 @@ cat "$work/server.crt" "$work/server.encrypted" > "$work/server.pem"
 openssl genrsa -out "$work/client.key" 2048 2>/dev/null
 openssl req -new -key "$work/client.key" -subj "/CN=smoke-client" -out "$work/client.csr" 2>/dev/null
 openssl x509 -req -in "$work/client.csr" -CA "$work/ca.crt" -CAkey "$work/ca.key" \
-  -CAcreateserial -days 2 -sha256 -out "$work/client.crt" 2>/dev/null
+  -CAcreateserial -days 2 -sha256 \
+  -extfile <(printf 'basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature\nextendedKeyUsage=clientAuth\nauthorityKeyIdentifier=keyid\n') \
+  -out "$work/client.crt" 2>/dev/null
 cat "$work/client.key" "$work/client.crt" > "$work/client.pem"
 
 reset_volume
