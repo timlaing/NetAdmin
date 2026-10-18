@@ -82,8 +82,9 @@ def test_update_subnet_preserves_everything_else() -> None:
 
 
 def test_update_unknown_subnet_raises() -> None:
+    text = fixture("kea4.conf")
     with pytest.raises(KeyError):
-        update_subnet(fixture("kea4.conf"), "203.0.113.0", [], {})
+        update_subnet(text, "203.0.113.0", [], {})
 
 
 def test_reservations_parse_remove_and_source() -> None:

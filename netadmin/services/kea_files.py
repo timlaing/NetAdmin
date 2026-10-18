@@ -18,11 +18,11 @@ from pathlib import Path
 from typing import Any
 
 INCLUDE = re.compile(r'<\?include\s+"([^"]+)"\?>')
-SUBNET_VALUE = re.compile(r'"subnet"\s*:\s*"([0-9.]+/[0-9]+)"')
+SUBNET_VALUE = re.compile(r'"subnet"\s*:\s*"([\d.]+/\d+)"')
 _POOLS_KEY = re.compile(r'"pools"\s*:\s*\[')
 _OPTION_DATA_KEY = re.compile(r'"option-data"\s*:\s*\[')
 _RESERVATIONS_KEY = re.compile(r'"reservations"\s*:\s*\[')
-_SUBNET_ID = re.compile(r'"id"\s*:\s*([0-9]+)')
+_SUBNET_ID = re.compile(r'"id"\s*:\s*(\d+)')
 
 # Kea memfile lease states from src/lib/dhcpsrv/lease.h (STATE_* constants),
 # named with the ISC binding-state vocabulary the web UI already displays.
