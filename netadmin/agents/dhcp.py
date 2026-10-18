@@ -1,4 +1,4 @@
-"""Restricted ISC DHCPD configuration agent."""
+"""Restricted DHCP configuration agent (ISC dhcpd or Kea, via DHCP_SERVER)."""
 
 from __future__ import annotations
 
@@ -17,16 +17,8 @@ from netadmin.agents.common import (
     json_object,
     validated_transaction,
 )
-from netadmin.services.dhcp_files import (
-    discover_files,
-    kea_export,
-    remove_reservation,
-    subnets,
-    update_subnet,
-)
-from netadmin.services.dhcp_files import (
-    reservations as file_reservations,
-)
+from netadmin.services import dhcp_files, kea_files
+from netadmin.services.dhcp_files import kea_export
 
 HOST_PATTERN = re.compile(r"host\s+([A-Za-z0-9_-]+)\s*\{(.*?)\}", re.DOTALL)
 MAC_PATTERN = re.compile(r"hardware\s+ethernet\s+([0-9A-Fa-f:]{17})\s*;")
@@ -34,8 +26,15 @@ IP_PATTERN = re.compile(r"fixed-address\s+([0-9.]+)\s*;")
 LEASE_PATTERN = re.compile(r"lease\s+([0-9.]+)\s*\{(.*?)\}", re.DOTALL)
 
 
+def _kea() -> bool:
+    """True when this agent manages a Kea daemon instead of ISC dhcpd."""
+    return os.environ.get("DHCP_SERVER", "isc") == "kea"
+
+
 def parse_reservations(text: str) -> list[dict[str, str]]:
-    """Parse the supported ISC host reservation subset."""
+    """Parse the supported reservation subset in the backend's format."""
+    if _kea():
+        return kea_files.parse_reservations(text)
     result = []
     for name, body in HOST_PATTERN.findall(text):
         mac = MAC_PATTERN.search(body)
@@ -47,6 +46,8 @@ def parse_reservations(text: str) -> list[dict[str, str]]:
 
 def render_reservations(items: list[dict[str, str]]) -> str:
     """Render deterministic NetAdmin-managed reservations."""
+    if _kea():
+        return kea_files.render_reservations(items)
     blocks = [
         f"host {item['name']} {{\n  hardware ethernet {item['mac']};\n"
         f"  fixed-address {item['address']};\n}}"
@@ -56,7 +57,9 @@ def render_reservations(items: list[dict[str, str]]) -> str:
 
 
 def parse_leases(text: str) -> list[dict[str, str]]:
-    """Parse useful fields from the ISC lease database."""
+    """Parse useful fields from the backend's lease database."""
+    if _kea():
+        return kea_files.parse_leases(text)
     leases: list[dict[str, str]] = []
     for address, body in LEASE_PATTERN.findall(text):
         entry = {"address": address}
@@ -70,6 +73,34 @@ def parse_leases(text: str) -> list[dict[str, str]]:
             entry[key] = match.group(1) if match else ""
         leases.append(entry)
     return leases
+
+
+def _subnets(text: str) -> list[dict[str, Any]]:
+    """Parse subnets in the configured backend's format."""
+    return kea_files.subnets(text) if _kea() else dhcp_files.subnets(text)
+
+
+def _update_subnet(
+    text: str, network: str, ranges: list[list[str]], options: dict[str, str]
+) -> str:
+    """Splice pool and option changes into the configured backend's format."""
+    if _kea():
+        return kea_files.update_subnet(text, network, ranges, options)
+    return dhcp_files.update_subnet(text, network, ranges, options)
+
+
+def _discover(main_config: Path) -> list[Path]:
+    """The main config plus every included file, backend-format aware."""
+    return (
+        kea_files.discover_files(main_config) if _kea() else dhcp_files.discover_files(main_config)
+    )
+
+
+def _reservations_from(text: str, source: str) -> list[dict[str, str]]:
+    """Parse reservations with source attribution, backend-format aware."""
+    if _kea():
+        return kea_files.reservations(text, source)
+    return dhcp_files.reservations(text, source)
 
 
 def _validate_item(item: dict[str, Any]) -> dict[str, str]:
@@ -92,12 +123,21 @@ def _current(managed: Path) -> list[dict[str, str]]:
 def _all_reservations(main_config: Path) -> list[dict[str, str]]:
     """Reservations across the main config and every include."""
     result = []
-    for path in discover_files(main_config):
-        result.extend(file_reservations(path.read_text(encoding="utf-8"), str(path)))
+    for path in _discover(main_config):
+        result.extend(_reservations_from(path.read_text(encoding="utf-8"), str(path)))
     return result
 
 
 def _validate_live(main_config: Path) -> None:
+    """Ask the configured daemon's own parser to check the installed config."""
+    if _kea():
+        subprocess.run(  # noqa: S603
+            ["/usr/sbin/kea-dhcp4", "-t", str(main_config)],
+            check=True,
+            capture_output=True,
+            timeout=20,
+        )
+        return
     subprocess.run(  # noqa: S603
         ["/usr/sbin/dhcpd", "-t", "-4", "-cf", str(main_config)],
         check=True,
@@ -115,11 +155,17 @@ def _duplicate(entries: list[dict[str, str]], item: dict[str, str]) -> bool:
 
 def _external_changes(entries: list[dict[str, str]], managed: Path, name: str) -> dict[Path, str]:
     """Removals of the same host from files the managed file does not own."""
+    if _kea():
+        # Kea mode has a single NetAdmin-owned include file (the migration
+        # folds every legacy host into it), so there is nothing else to edit.
+        return {}
     changes = {}
     for existing in entries:
         if existing["name"] == name and Path(existing["source"]) != managed.resolve():
             source = Path(existing["source"])
-            changes[source] = remove_reservation(source.read_text(encoding="utf-8"), name)
+            changes[source] = dhcp_files.remove_reservation(
+                source.read_text(encoding="utf-8"), name
+            )
     return changes
 
 
@@ -173,7 +219,7 @@ def _delete_reservation() -> Any:
 
 
 def _configuration() -> Any:
-    return jsonify(subnets(_path("DHCP_MAIN").read_text(encoding="utf-8")))
+    return jsonify(_subnets(_path("DHCP_MAIN").read_text(encoding="utf-8")))
 
 
 def _save_configuration() -> Any:
@@ -184,7 +230,7 @@ def _save_configuration() -> Any:
     if not isinstance(ranges, list) or not isinstance(options, dict):
         return jsonify({"error": "ranges and options have invalid types"}), 400
     main_config = _path("DHCP_MAIN")
-    updated = update_subnet(main_config.read_text(encoding="utf-8"), network, ranges, options)
+    updated = _update_subnet(main_config.read_text(encoding="utf-8"), network, ranges, options)
     validated_transaction({main_config: updated}, lambda: _validate_live(main_config), _reload())
     return jsonify({"network": network})
 
@@ -193,7 +239,7 @@ def _export_kea() -> Any:
     main_config = _path("DHCP_MAIN")
     return jsonify(
         kea_export(
-            subnets(main_config.read_text(encoding="utf-8")),
+            _subnets(main_config.read_text(encoding="utf-8")),
             _all_reservations(main_config),
         )
     )
@@ -201,6 +247,9 @@ def _export_kea() -> Any:
 
 def create_dhcp_agent() -> Flask:
     """Create the DHCP agent application."""
+    backend = os.getenv("DHCP_SERVER", "isc")
+    if backend not in {"isc", "kea"}:
+        raise ValueError(f"DHCP_SERVER must be 'isc' or 'kea', got {backend!r}")
     app = create_agent(__name__)
     app.config.update(
         DHCP_MANAGED=configured_path("DHCP_MANAGED_FILE", "/etc/dhcp/netadmin-reservations.conf"),

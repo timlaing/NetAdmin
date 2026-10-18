@@ -142,6 +142,12 @@ docker exec "$name" sh -c 'ss -lun | grep -q ":67 "' \
 dhcp4_version="$(printf '{"command":"version-get"}\n' | docker exec -i "$name" nc -U /run/kea/kea4-ctrl.sock)"
 echo "$dhcp4_version" | grep -q '"extended"' \
   || fail "kea-dhcp4 control socket did not answer version-get: $dhcp4_version"
+# The exact reload the dual-mode agent sends in kea mode must succeed and
+# leave the daemon running.
+reload="$(printf '{"command":"config-reload"}\n' | docker exec -i "$name" nc -U /run/kea/kea4-ctrl.sock)"
+echo "$reload" | grep -Eq '"result": ?0' \
+  || fail "kea-dhcp4 config-reload did not succeed: $reload"
+[[ "$(running)" == true ]] || fail "container exited after config-reload"
 d2_version="$(printf '{"command":"version-get"}\n' | docker exec -i "$name" nc -U /run/kea/kea-ddns.sock)"
 echo "$d2_version" | grep -q '"extended"' \
   || fail "D2 control socket did not answer version-get: $d2_version"

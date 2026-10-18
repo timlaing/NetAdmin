@@ -20,6 +20,14 @@ def _path_env(name: str) -> Path | None:
     return Path(value) if value else None
 
 
+def _choice(name: str, default: str, allowed: set[str]) -> str:
+    """Read an environment variable restricted to a small set of values."""
+    value = os.getenv(name, default)
+    if value not in allowed:
+        raise RuntimeError(f"{name} must be one of {sorted(allowed)}, got {value!r}")
+    return value
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:  # pylint: disable=too-many-instance-attributes
     """Runtime settings shared by the web application."""
@@ -40,6 +48,7 @@ class Settings:  # pylint: disable=too-many-instance-attributes
     dns_config_path: Path | None = None
     dns_zones: tuple[str, ...] = ()
     dhcp_agent_url: str = "http://dhcp-agent:8081"
+    dhcp_backend: str = "isc"
     radius_agent_url: str = "http://radius-agent:8082"
     agent_token: str = ""
     agent_ca: Path | None = None
@@ -71,6 +80,7 @@ class Settings:  # pylint: disable=too-many-instance-attributes
                 if item.strip()
             ),
             dhcp_agent_url=os.getenv("NETADMIN_DHCP_AGENT_URL", "http://dhcp-agent:8081"),
+            dhcp_backend=_choice("NETADMIN_DHCP_BACKEND", "isc", {"isc", "kea"}),
             radius_agent_url=os.getenv("NETADMIN_RADIUS_AGENT_URL", "http://radius-agent:8082"),
             agent_token=os.getenv("NETADMIN_AGENT_TOKEN", ""),
             agent_ca=_path_env("NETADMIN_AGENT_CA"),

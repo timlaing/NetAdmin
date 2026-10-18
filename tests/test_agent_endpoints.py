@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from netadmin.agents.dhcp import create_dhcp_agent
+from netadmin.agents.dhcp import create_dhcp_agent, parse_reservations
 from netadmin.agents.radius import create_radius_agent
 
 AUTH = {"Authorization": "Bearer test-agent-token"}
@@ -54,6 +54,66 @@ include "{managed}";
     assert response.status_code == 200
     assert client.get("/export/kea", headers=AUTH).get_json()["Dhcp4"]["subnet4"]
     assert client.post("/reservations/delete", headers=AUTH, json={"name": "pi"}).status_code == 200
+
+
+def test_dhcp_agent_kea_workflow(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    config = tmp_path / "kea4.conf"
+    managed = tmp_path / "netadmin-reservations.json"
+    leases = tmp_path / "dhcp4.leases"
+    config.write_text(
+        f'''{{
+  "Dhcp4": {{
+    "reservations-global": true,
+    "subnet4": [
+      {{
+        "id": 1,
+        "subnet": "192.0.2.0/24",
+        "pools": [ {{ "pool": "192.0.2.10 - 192.0.2.20" }} ],
+        "option-data": [ {{ "name": "routers", "data": "192.0.2.1" }} ]
+      }}
+    ],
+    <?include "{managed}"?>
+  }}
+}}
+'''
+    )
+    managed.write_text('"reservations": []\n')
+    leases.write_text("192.0.2.10,aa:bb:cc:dd:ee:ff,,3600,1766798400,1,0,0,laptop,0,,\n")
+    monkeypatch.setenv("DHCP_SERVER", "kea")
+    monkeypatch.setenv("NETADMIN_AGENT_TOKEN", "test-agent-token")
+    monkeypatch.setenv("DHCP_MAIN_CONFIG", str(config))
+    monkeypatch.setenv("DHCP_MANAGED_FILE", str(managed))
+    monkeypatch.setenv("DHCP_LEASES_FILE", str(leases))
+    monkeypatch.setattr("netadmin.agents.dhcp.subprocess.run", lambda *args, **kwargs: None)
+    client = create_dhcp_agent().test_client()
+    assert client.get("/leases", headers=AUTH).get_json()[0]["state"] == "active"
+    response = client.post(
+        "/reservations",
+        headers=AUTH,
+        json={"name": "pi", "mac": "aa:bb:cc:dd:ee:01", "address": "192.0.2.5"},
+    )
+    assert response.status_code == 200
+    saved = parse_reservations(managed.read_text(encoding="utf-8"))
+    assert saved == [{"name": "pi", "mac": "aa:bb:cc:dd:ee:01", "address": "192.0.2.5"}]
+    assert client.get("/reservations", headers=AUTH).get_json()[0]["name"] == "pi"
+    response = client.post(
+        "/configuration",
+        headers=AUTH,
+        json={
+            "network": "192.0.2.0",
+            "ranges": [["192.0.2.30", "192.0.2.40"]],
+            "options": {"routers": "192.0.2.254"},
+        },
+    )
+    assert response.status_code == 200
+    updated = config.read_text(encoding="utf-8")
+    assert "192.0.2.30 - 192.0.2.40" in updated
+    assert "192.0.2.254" in updated
+    snapshot = client.get("/export/kea", headers=AUTH).get_json()
+    assert snapshot["Dhcp4"]["subnet4"][0]["id"] == 1
+    response = client.post("/reservations/delete", headers=AUTH, json={"name": "pi"})
+    assert response.status_code == 200
+    assert parse_reservations(managed.read_text(encoding="utf-8")) == []
 
 
 def test_radius_agent_workflow(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -111,6 +171,13 @@ def test_dhcp_agent_rejects_bad_paths(monkeypatch: pytest.MonkeyPatch, tmp_path:
     monkeypatch.setenv("NETADMIN_AGENT_TOKEN", "test-agent-token")
     monkeypatch.setenv("DHCP_MAIN_CONFIG", str(tmp_path / ".." / "dhcpd.conf"))
     with pytest.raises(ValueError, match="DHCP_MAIN_CONFIG"):
+        create_dhcp_agent()
+
+
+def test_dhcp_agent_rejects_bad_backend(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("NETADMIN_AGENT_TOKEN", "test-agent-token")
+    monkeypatch.setenv("DHCP_SERVER", "bogus")
+    with pytest.raises(ValueError, match="DHCP_SERVER"):
         create_dhcp_agent()
 
 
