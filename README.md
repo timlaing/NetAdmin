@@ -1,5 +1,24 @@
 # NetAdmin
 
+[![CI](https://github.com/timlaing/NetAdmin/actions/workflows/ci.yml/badge.svg)](https://github.com/timlaing/NetAdmin/actions/workflows/ci.yml)
+[![Lint](https://github.com/timlaing/NetAdmin/actions/workflows/lint.yml/badge.svg)](https://github.com/timlaing/NetAdmin/actions/workflows/lint.yml)
+[![CodeQL](https://github.com/timlaing/NetAdmin/actions/workflows/codeql.yml/badge.svg)](https://github.com/timlaing/NetAdmin/actions/workflows/codeql.yml)
+[![License](https://img.shields.io/github/license/timlaing/NetAdmin)](LICENSE)
+
+[![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=timlaing_NetAdmin&metric=ncloc)](https://sonarcloud.io/summary/new_code?id=timlaing_NetAdmin)
+[![Code style: Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
+[![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=timlaing_NetAdmin&metric=duplicated_lines_density)](https://sonarcloud.io/summary/new_code?id=timlaing_NetAdmin)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=timlaing_NetAdmin&metric=coverage)](https://sonarcloud.io/summary/new_code?id=timlaing_NetAdmin)
+
+[![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=timlaing_NetAdmin&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=timlaing_NetAdmin)
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=timlaing_NetAdmin&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=timlaing_NetAdmin)
+[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=timlaing_NetAdmin&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=timlaing_NetAdmin)
+[![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=timlaing_NetAdmin&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=timlaing_NetAdmin)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=timlaing_NetAdmin&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=timlaing_NetAdmin)
+[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=timlaing_NetAdmin&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=timlaing_NetAdmin)
+[![Bugs](https://sonarcloud.io/api/project_badges/measure?project=timlaing_NetAdmin&metric=bugs)](https://sonarcloud.io/summary/new_code?id=timlaing_NetAdmin)
+[![Technical Debt](https://sonarcloud.io/api/project_badges/measure?project=timlaing_NetAdmin&metric=sqale_index)](https://sonarcloud.io/summary/new_code?id=timlaing_NetAdmin)
+
 NetAdmin is a Flask and Bootstrap application for administering Bind 9, ISC DHCPD and
 FreeRADIUS while leaving each service as the source of truth. Bind uses AXFR and RFC 2136.
 Restricted DHCP and RADIUS agents validate and atomically install file-backed changes.
