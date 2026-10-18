@@ -1,0 +1,24 @@
+FROM ubuntu:26.04
+
+LABEL org.opencontainers.image.authors="tim@laingcorp.co.uk"
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    kea-dhcp4-server \
+    kea-dhcp-ddns-server \
+    netcat-openbsd \
+    iproute2 \
+  && apt-get clean \
+  && rm -rf /var/lib/apt/lists/* \
+  # Kea refuses control sockets outside this directory (compile-time default
+  # for the distro packages) and requires mode 0750. The memfile lease
+  # directory is created here too; compose overlays it with the live tree.
+  && install -d -m 0750 /run/kea \
+  && install -d -m 0755 /var/lib/kea
+
+COPY docker/entrypoint-kea.sh /usr/local/bin/entrypoint-kea.sh
+COPY docker/kead2.conf.in /etc/kea/kead2.conf.in
+
+EXPOSE 67
+
+ENTRYPOINT ["entrypoint-kea.sh"]

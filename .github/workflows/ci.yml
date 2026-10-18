@@ -146,6 +146,18 @@ jobs:
             dockerfile: docker/Dockerfile.dhcpd
             image: netadmin-dhcp:test
             smoke: Tools/smoke_dhcp.sh
+          - flavour: dhcp-kea
+            arch: amd64
+            runner: ubuntu-24.04
+            dockerfile: docker/Dockerfile.kea
+            image: netadmin-dhcp-kea:test
+            smoke: Tools/smoke_dhcp_kea.sh
+          - flavour: dhcp-kea
+            arch: aarch64
+            runner: ubuntu-24.04-arm
+            dockerfile: docker/Dockerfile.kea
+            image: netadmin-dhcp-kea:test
+            smoke: Tools/smoke_dhcp_kea.sh
           - flavour: radius
             arch: amd64
             runner: ubuntu-24.04
