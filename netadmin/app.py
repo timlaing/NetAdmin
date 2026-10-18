@@ -199,6 +199,7 @@ def dhcp_index() -> Any:
         reservations=client.get("reservations"),
         leases=client.get("leases"),
         subnets=client.get("configuration"),
+        backend=_settings().dhcp_backend,
     )
 
 

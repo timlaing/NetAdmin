@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+import pytest
 from argon2 import PasswordHasher
 
 from netadmin import create_app
@@ -18,6 +19,19 @@ def make_app(tmp_path: Path):  # type: ignore[no-untyped-def]
     )
     app.config.update(TESTING=True, WTF_CSRF_ENABLED=False)
     return app
+
+
+def test_backend_from_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("NETADMIN_SECRET_KEY", "test-secret")
+    monkeypatch.setenv("NETADMIN_ROOT_PASSWORD_HASH", "test-hash")
+    monkeypatch.setenv("NETADMIN_DATA_DIR", str(tmp_path))
+    monkeypatch.delenv("NETADMIN_DHCP_BACKEND", raising=False)
+    assert Settings.from_env().dhcp_backend == "isc"
+    monkeypatch.setenv("NETADMIN_DHCP_BACKEND", "kea")
+    assert Settings.from_env().dhcp_backend == "kea"
+    monkeypatch.setenv("NETADMIN_DHCP_BACKEND", "bogus")
+    with pytest.raises(RuntimeError, match="NETADMIN_DHCP_BACKEND"):
+        Settings.from_env()
 
 
 def test_anonymous_redirected(tmp_path: Path) -> None:

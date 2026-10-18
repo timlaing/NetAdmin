@@ -1,0 +1,183 @@
+# Kea deployment variant of the NetAdmin stack: identical to docker-compose.yml
+# except the dhcp service runs Kea 3 (docker/Dockerfile.kea) and the dhcp agent
+# manages it over its unix control socket (DHCP_SERVER=kea).
+#
+# Usage:  docker compose -f docker-compose.kea.yml up -d
+# The ISC deployment keeps using docker-compose.yml unchanged; migration
+# tooling lives in scripts/ and is independent of either file.
+services:
+
+  netadmin:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: netadmin
+    restart: unless-stopped
+    depends_on: [dns, radius, dhcp-agent, radius-agent]
+    env_file: .env
+    environment:
+      NETADMIN_DATA_DIR: /data
+      NETADMIN_DNS_SERVER: dns
+      NETADMIN_DNS_CONFIG_PATH: /bind-config/named.conf
+      NETADMIN_RADIUS_HOST: radius
+      NETADMIN_DHCP_AGENT_URL: https://dhcp-agent:8081
+      NETADMIN_RADIUS_AGENT_URL: https://radius-agent:8082
+      NETADMIN_DHCP_BACKEND: kea
+    ports: ["8099:8099"]
+    volumes:
+      - netadmin-data:/data
+      - "./dns/named.conf:/bind-config/named.conf:ro"
+      - "./pki:/pki:ro"
+
+  dhcp-agent:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dhcp-agent
+    restart: unless-stopped
+    depends_on: [dhcp]
+    env_file: .env
+    environment:
+      DHCP_SERVER: kea
+      DHCP_MAIN_CONFIG: /etc/dhcp/kea4.conf
+      DHCP_MANAGED_FILE: /etc/dhcp/netadmin-reservations.json
+      DHCP_LEASES_FILE: /var/lib/kea/dhcp4.leases
+      DHCP_RELOAD_COMMAND: python3 -m netadmin.agents.kea_ctrl config-reload
+    volumes:
+      - "./dhcp/config:/etc/dhcp:rw"
+      - "./dhcp/leases:/var/lib/kea:ro"
+      # The agent connects to the daemon's control socket; a unix connect()
+      # needs write access, hence the rw mount (it never creates files).
+      - "kea-run:/run/kea"
+      - "./pki/dhcp-agent:/pki:ro"
+
+  radius-agent:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.radius-agent
+    restart: unless-stopped
+    pid: service:radius
+    depends_on: [radius]
+    env_file: .env
+    environment:
+      RADIUS_MANAGED_FILE: /etc/raddb/mods-config/files/netadmin
+      RADIUS_AUTHORIZE_FILE: /etc/raddb/mods-config/files/authorize
+      RADIUS_CLIENTS_FILE: /etc/raddb/clients.conf
+      RADIUS_MANAGED_CLIENTS_FILE: /etc/raddb/netadmin-clients.conf
+      RADIUS_ADMIN_POOLS: pool-parent
+      RADIUS_RELOAD_COMMAND: kill -HUP 1
+    volumes:
+      - "./freeradius/raddb/mods-config/files/netadmin:/etc/raddb/mods-config/files/netadmin:rw"
+      - "./freeradius/raddb/mods-config/files/authorize:/etc/raddb/mods-config/files/authorize:rw"
+      - "./freeradius/raddb/clients.conf:/etc/raddb/clients.conf:ro"
+      - "./freeradius/raddb/netadmin-clients.conf:/etc/raddb/netadmin-clients.conf:rw"
+      - "./pki/radius-agent:/pki:ro"
+
+  dhcp:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.kea
+    image: netadmin-dhcp-kea
+    container_name: dhcp
+    hostname: dhcp
+    restart: unless-stopped
+    # kea4.conf includes the D2 key rendered from the rndc-shared volume, so
+    # the entrypoint waits for it exactly like the dhcpd entrypoint does.
+    depends_on:
+      dns:
+        condition: service_healthy
+    ports:
+      - 67:67/udp
+      - 67:67/tcp
+    volumes:
+      - "./dhcp/config:/etc/dhcp/"
+      - "./dhcp/leases:/var/lib/kea:rw"
+      - "rndc-shared:/run/rndc:ro"
+      - "kea-run:/run/kea"
+
+  dns:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.bind
+    image: ghcr.io/timlaing/netadmin-dns
+    container_name: dns
+    hostname: dns-master
+    restart: unless-stopped
+    # Only the TSIG secret crosses this boundary; the key name is the fixed
+    # "rndc-key" and the full key is printed to the console on every start.
+    environment:
+      NETADMIN_DNS_TSIG_SECRET: ${NETADMIN_DNS_TSIG_SECRET:-}
+    command:
+      - "-c"
+      - "/etc/bind/named.conf"
+      - "-4"
+    healthcheck:
+      test: ["CMD", "nslookup", "localhost", "127.0.0.1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    ports:
+      - "53:53/udp"
+      - "53:53/tcp"
+      - "953:953/tcp"
+    dns:
+      - 127.0.0.1
+      - 192.168.100.25
+    volumes:
+      - "./dns/named.conf:/etc/bind/named.conf"
+      - "rndc-shared:/run/rndc"
+      - "./dns/named.ca:/var/bind/named.ca"
+      - "./dns/zones/fwd:/var/bind/fwd"
+      - "./dns/zones/rev:/var/bind/rev"
+
+  radius:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.freeradius
+    image: ghcr.io/timlaing/netadmin-radius
+    container_name: freeradius
+    hostname: radius
+    restart: unless-stopped
+    # Optional: seed existing TLS material instead of generating fresh on an
+    # empty certs volume (base64 PEM, see README). Fingerprints only in logs.
+    environment:
+      NETADMIN_RADIUS_TLS_SERVER_PEM: ${NETADMIN_RADIUS_TLS_SERVER_PEM:-}
+      NETADMIN_RADIUS_TLS_CA_PEM: ${NETADMIN_RADIUS_TLS_CA_PEM:-}
+      NETADMIN_RADIUS_TLS_CA_KEY: ${NETADMIN_RADIUS_TLS_CA_KEY:-}
+      NETADMIN_RADIUS_TLS_CLIENT_PEM: ${NETADMIN_RADIUS_TLS_CLIENT_PEM:-}
+    ports:
+      - "1812:1812/udp"
+      - "1813:1813/udp"
+    volumes:
+      - "./freeradius/raddb/mods-config/files/authorize:/etc/raddb/mods-config/files/authorize"
+      - "./freeradius/raddb/mods-config/files/netadmin:/etc/raddb/mods-config/files/netadmin"
+      - "./freeradius/raddb/mods-config/files/dhcp:/etc/raddb/mods-config/files/dhcp"
+      - "./freeradius/raddb/clients.conf:/etc/raddb/clients.conf"
+      - "./freeradius/raddb/netadmin-clients.conf:/etc/raddb/netadmin-clients.conf"
+      - "radius-certs:/etc/raddb/certs"
+    command:
+      - "-X"
+
+  whatsupdocker:
+    image: getwud/wud
+    container_name: wud
+    hostname: wud
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - 3000:3000
+    healthcheck:
+      test: curl --fail http://localhost:${WUD_SERVER_PORT:-3000}/health || exit 1
+      interval: 10s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    environment:
+      - WUD_TRIGGER_DOCKER_LOCAL_PRUNE=true
+
+volumes:
+  netadmin-data:
+  rndc-shared:
+  radius-certs:
+  kea-run:

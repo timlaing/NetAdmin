@@ -46,6 +46,12 @@ Three deployables from one package, wired in `docker-compose.yml`:
   rollback. Run it on the server from a repo checkout, not locally.
 - Service images: `docker/Dockerfile.{bind,dhcpd,freeradius}` with
   `docker/entrypoint-*.sh`; compose tags them `ghcr.io/timlaing/netadmin-{dns,dhcp,radius}`.
+  `docker-compose.kea.yml` is the Kea-backend variant of the same stack
+  (`docker compose -f docker-compose.kea.yml up -d`); the dhcp agent selects its
+  backend with `DHCP_SERVER=isc|kea` (default isc), validates with the matching
+  daemon parser, and in kea mode reloads over the `/run/kea/kea4-ctrl.sock`
+  control socket (`python3 -m netadmin.agents.kea_ctrl`). Migration tooling is
+  separate from both compose files.
   Entrypoints own key material at runtime — never baked into images: dns seeds or
   generates `rndc-key` into the `rndc-shared` volume and prints the full key on
   every start, dhcp waits for that volume and copies the key to
