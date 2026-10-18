@@ -70,3 +70,32 @@ def test_subnet_update_consumes_preceding_blank_lines() -> None:
   next-server 192.0.2.2;
 }"""
     )
+
+
+def test_kea_export_places_hosts_by_subnet() -> None:
+    items = [
+        {
+            "network": "192.0.2.0",
+            "netmask": "255.255.255.0",
+            "ranges": [["192.0.2.10", "192.0.2.20"]],
+            "options": {},
+        },
+        {
+            "network": "198.51.100.0",
+            "netmask": "255.255.255.0",
+            "ranges": [["198.51.100.10", "198.51.100.20"]],
+            "options": {},
+        },
+    ]
+    hosts = [
+        {"name": "pi", "mac": "aa:bb:cc:dd:ee:01", "address": "192.0.2.5"},
+        {"name": "printer", "mac": "aa:bb:cc:dd:ee:02", "address": "198.51.100.5"},
+        {"name": "orphan", "mac": "aa:bb:cc:dd:ee:03", "address": "203.0.113.9"},
+    ]
+    snapshot = kea_export(items, hosts)
+    subnets_out = snapshot["Dhcp4"]["subnet4"]
+    assert [entry["id"] for entry in subnets_out] == [1, 2]
+    assert [host["hostname"] for host in subnets_out[0]["reservations"]] == ["pi"]
+    assert [host["hostname"] for host in subnets_out[1]["reservations"]] == ["printer"]
+    assert snapshot["Dhcp4"]["reservations-global"] is True
+    assert [host["hostname"] for host in snapshot["Dhcp4"]["reservations"]] == ["orphan"]

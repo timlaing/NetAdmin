@@ -162,4 +162,13 @@ if log_has "rendered D2 config"; then
   fail "daemons started although the key never arrived"
 fi
 
+# 4. The repository's Kea configuration fixture (the shape the config
+#    assembler emits, include directive and comments included) must parse
+#    with the real daemon.
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+docker run --rm \
+  --mount "type=bind,source=$repo_root/tests/fixtures/kea,target=/etc/dhcp,readonly" \
+  --entrypoint kea-dhcp4 "$image" -t /etc/dhcp/kea4.conf \
+  || fail "repository Kea fixture failed kea-dhcp4 -t"
+
 echo "Kea DHCP container smoke checks passed"

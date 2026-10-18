@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 import re
 from pathlib import Path
 from typing import Any
@@ -134,30 +135,57 @@ def update_subnet(text: str, network: str, ranges: list[list[str]], options: dic
 
 
 def kea_export(items: list[dict[str, Any]], hosts: list[dict[str, str]]) -> dict[str, Any]:
-    """Create a Kea DHCPv4 migration snapshot."""
-    return {
-        "Dhcp4": {
-            "subnet4": [
+    """Create a Kea DHCPv4 migration snapshot.
+
+    Each host lands in the first subnet whose prefix contains its address;
+    hosts outside every subnet become global reservations (which also sets
+    Kea's ``reservations-global``). Subnet ids follow the input order so
+    repeated exports stay stable.
+    """
+    assigned: list[list[dict[str, str]]] = [[] for _ in items]
+    global_hosts: list[dict[str, str]] = []
+    for host in hosts:
+        address = ipaddress.IPv4Address(host["address"])
+        for index, item in enumerate(items):
+            network = ipaddress.ip_network(f"{item['network']}/{_prefix(item['netmask'])}")
+            if address in network:
+                assigned[index].append(host)
+                break
+        else:
+            global_hosts.append(host)
+
+    subnets_out = [
+        {
+            "id": index + 1,
+            "subnet": f"{item['network']}/{_prefix(item['netmask'])}",
+            "pools": [{"pool": f"{start} - {end}"} for start, end in item["ranges"]],
+            "option-data": [
+                {"name": name, "data": value.strip('"')}
+                for name, value in sorted(item["options"].items())
+            ],
+            "reservations": [
                 {
-                    "subnet": f"{item['network']}/{_prefix(item['netmask'])}",
-                    "pools": [{"pool": f"{start} - {end}"} for start, end in item["ranges"]],
-                    "option-data": [
-                        {"name": name, "data": value.strip('"')}
-                        for name, value in sorted(item["options"].items())
-                    ],
-                    "reservations": [
-                        {
-                            "hostname": host["name"],
-                            "hw-address": host["mac"],
-                            "ip-address": host["address"],
-                        }
-                        for host in hosts
-                    ],
+                    "hostname": host["name"],
+                    "hw-address": host["mac"],
+                    "ip-address": host["address"],
                 }
-                for item in items
-            ]
+                for host in assigned[index]
+            ],
         }
-    }
+        for index, item in enumerate(items)
+    ]
+    snapshot: dict[str, Any] = {"Dhcp4": {"subnet4": subnets_out}}
+    if global_hosts:
+        snapshot["Dhcp4"]["reservations-global"] = True
+        snapshot["Dhcp4"]["reservations"] = [
+            {
+                "hostname": host["name"],
+                "hw-address": host["mac"],
+                "ip-address": host["address"],
+            }
+            for host in global_hosts
+        ]
+    return snapshot
 
 
 def _prefix(netmask: str) -> int:
