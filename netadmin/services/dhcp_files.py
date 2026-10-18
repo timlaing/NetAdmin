@@ -9,10 +9,28 @@ from typing import Any
 INCLUDE = re.compile(r'^[ \t]*include\s+"([^"]+)"\s*;', re.MULTILINE)
 HOST_START = re.compile(r"\bhost\s+([A-Za-z0-9_-]+)\s*\{")
 SUBNET_START = re.compile(r"\bsubnet\s+([0-9.]+)\s+netmask\s+([0-9.]+)\s*\{")
-# Possessive quantifiers keep the blank-line run linear for the regex
-# analyzer; each iteration must start with \n so nothing usable is consumed.
-_RANGE_LINE = re.compile(r"(?m)^[ \t]*+(?:\r?\n[ \t]*+)*+range\s+[0-9.]+\s+[0-9.]+\s*;\s*\n?")
-_OPTION_LINE = re.compile(r"(?m)^[ \t]*+(?:\r?\n[ \t]*+)*+option\s+[A-Za-z0-9_-]+\s+[^;]+;\s*\n?")
+# Directives anchor on their own line only ([ \t], never \n) so the patterns
+# stay linear for the regex analyzer; blank lines directly above a directive
+# are consumed by _remove_directives, matching the old ^\s* behaviour.
+_RANGE_LINE = re.compile(r"(?m)^[ \t]*range\s+[0-9.]+\s+[0-9.]+\s*;\s*\n?")
+_OPTION_LINE = re.compile(r"(?m)^[ \t]*option\s+[A-Za-z0-9_-]+\s+[^;]+;\s*\n?")
+
+
+def _remove_directives(body: str, pattern: re.Pattern[str]) -> str:
+    """Remove each matching directive line and the blank lines directly above it."""
+    pieces: list[str] = []
+    cursor = 0
+    for match in pattern.finditer(body):
+        line_start = body.rfind("\n", 0, match.start()) + 1
+        while line_start > cursor:
+            above = body.rfind("\n", 0, line_start - 1) + 1
+            if body[above : line_start - 1].strip():
+                break
+            line_start = above
+        pieces.append(body[cursor:line_start])
+        cursor = match.end()
+    pieces.append(body[cursor:])
+    return "".join(pieces)
 
 
 def _block(text: str, start: int) -> tuple[int, str]:
@@ -99,8 +117,8 @@ def update_subnet(text: str, network: str, ranges: list[list[str]], options: dic
         if match.group(1) != network:
             continue
         end, body = _block(text, match.start())
-        body = _RANGE_LINE.sub("", body)
-        body = _OPTION_LINE.sub("", body)
+        body = _remove_directives(body, _RANGE_LINE)
+        body = _remove_directives(body, _OPTION_LINE)
         insertion = "".join(f"  range {start} {finish};\n" for start, finish in ranges)
         insertion += "".join(
             f"  option {name} {value};\n" for name, value in sorted(options.items())
