@@ -1,0 +1,34 @@
+{
+  "DhcpDdns": {
+    "ip-address": "127.0.0.1",
+    "port": 53001,
+    "dns-server-timeout": 2000,
+    "ncr-protocol": "UDP",
+    "ncr-format": "JSON",
+    "control-sockets": [
+      {
+        "socket-type": "unix",
+        "socket-name": "kea-ddns.sock"
+      }
+    ],
+    "tsig-keys": [
+      {
+        "name": "rndc-key",
+        "algorithm": "@ALGO@",
+        "secret": "@SECRET@"
+      }
+    ],
+    "forward-ddns": {
+      "ddns-domains": []
+    },
+    "reverse-ddns": {
+      "ddns-domains": []
+    },
+    "loggers": [
+      {
+        "name": "*",
+        "severity": "INFO"
+      }
+    ]
+  }
+}
