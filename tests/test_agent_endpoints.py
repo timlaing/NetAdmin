@@ -105,3 +105,17 @@ def test_radius_agent_workflow(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
     assert all("secret" not in item for item in returned)
     assert client.post("/clients/delete", headers=AUTH, json={"name": "router"}).status_code == 200
     assert client.post("/users/delete", headers=AUTH, json={"username": "bob"}).status_code == 200
+
+
+def test_dhcp_agent_rejects_bad_paths(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("NETADMIN_AGENT_TOKEN", "test-agent-token")
+    monkeypatch.setenv("DHCP_MAIN_CONFIG", str(tmp_path / ".." / "dhcpd.conf"))
+    with pytest.raises(ValueError, match="DHCP_MAIN_CONFIG"):
+        create_dhcp_agent()
+
+
+def test_radius_agent_rejects_bad_paths(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("NETADMIN_AGENT_TOKEN", "test-agent-token")
+    monkeypatch.setenv("RADIUS_MANAGED_FILE", "relative/netadmin")
+    with pytest.raises(ValueError, match="RADIUS_MANAGED_FILE"):
+        create_radius_agent()

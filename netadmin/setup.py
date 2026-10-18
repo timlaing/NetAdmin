@@ -194,6 +194,13 @@ def create_setup_app() -> Flask:
 
     CSRFProtect(app)
 
+    # env_path() refuses relative or traversal-bearing NETADMIN_ENV_FILE values;
+    # report the misconfiguration instead of an unhandled 500 traceback.
+    @app.errorhandler(ValueError)
+    def bad_env_file(error: ValueError) -> tuple[str, int]:
+        """Serve the configured-path rejection as a plain error page."""
+        return str(error), 500
+
     app.add_url_rule("/", view_func=step1, methods=["GET", "POST"])
     app.add_url_rule("/services", view_func=step2, methods=["GET", "POST"])
     app.add_url_rule("/apply", view_func=apply, methods=["POST"])

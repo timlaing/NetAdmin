@@ -91,6 +91,27 @@ def test_env_path_override(tmp_path: Path, monkeypatch) -> None:
     assert env_path() == tmp_path / "custom.env"
 
 
+def test_env_path_rejects_relative(monkeypatch) -> None:
+    monkeypatch.setenv("NETADMIN_ENV_FILE", "netadmin.env")
+    with pytest.raises(ValueError, match="must be absolute"):
+        env_path()
+
+
+def test_env_path_rejects_traversal(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("NETADMIN_ENV_FILE", str(tmp_path / ".." / "netadmin.env"))
+    with pytest.raises(ValueError, match="must be absolute"):
+        env_path()
+
+
+def test_wizard_reports_bad_env_file(monkeypatch) -> None:
+    monkeypatch.setenv("NETADMIN_ENV_FILE", "netadmin.env")
+    app = create_setup_app()
+    app.config.update(WTF_CSRF_ENABLED=False)
+    response = app.test_client().get("/", headers=INGRESS)
+    assert response.status_code == 500
+    assert b"NETADMIN_ENV_FILE must be absolute" in response.data
+
+
 def test_wsgi_falls_back_to_wizard_in_addon_mode(monkeypatch) -> None:
     monkeypatch.delenv("NETADMIN_SECRET_KEY", raising=False)
     monkeypatch.delenv("NETADMIN_ROOT_PASSWORD_HASH", raising=False)

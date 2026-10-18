@@ -47,3 +47,26 @@ def test_subnet_update_and_kea_export() -> None:
     )
     assert snapshot["Dhcp4"]["subnet4"][0]["subnet"] == "192.0.2.0/24"
     assert snapshot["Dhcp4"]["subnet4"][0]["reservations"][0]["hostname"] == "pi"
+
+
+def test_subnet_update_consumes_preceding_blank_lines() -> None:
+    text = """subnet 192.0.2.0 netmask 255.255.255.0 {
+  next-server 192.0.2.2;
+
+  range 192.0.2.10 192.0.2.20;
+  option routers 192.0.2.1;
+}"""
+    updated = update_subnet(
+        text,
+        "192.0.2.0",
+        [["192.0.2.30", "192.0.2.40"]],
+        {"routers": "192.0.2.254"},
+    )
+    assert (
+        updated
+        == """subnet 192.0.2.0 netmask 255.255.255.0 {
+  range 192.0.2.30 192.0.2.40;
+  option routers 192.0.2.254;
+  next-server 192.0.2.2;
+}"""
+    )

@@ -33,6 +33,14 @@ def create_agent(name: str) -> Flask:
     return app
 
 
+def configured_path(name: str, default: str) -> Path:
+    """Read an agent file path from the environment, refusing traversal tricks."""
+    candidate = Path(os.getenv(name, default))
+    if not candidate.is_absolute() or ".." in candidate.parts:
+        raise ValueError(f"{name} must be absolute and free of '..': {candidate}")
+    return candidate
+
+
 def atomic_validated_write(
     path: Path, content: str, validate: Callable[[Path], None], reload_command: list[str]
 ) -> None:
