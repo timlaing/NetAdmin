@@ -57,7 +57,11 @@ def write_env_file(values: dict[str, str]) -> None:
     managed = [f"{key}='{value}'" for key, value in values.items() if value]
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f".{path.name}.tmp")
-    temporary.write_text("\n".join(existing + managed) + "\n", encoding="utf-8")
+    # False positive (S2083): the path comes from env_path(), which raises unless
+    # NETADMIN_ENV_FILE is absolute and free of '..'. The variable is set by the
+    # operator at deploy time (the add-on's run.sh), never by a request, so the
+    # traversal vector cannot be reached from the web layer.
+    temporary.write_text("\n".join(existing + managed) + "\n", encoding="utf-8")  # NOSONAR
     temporary.chmod(0o640)
     temporary.replace(path)
 

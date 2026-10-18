@@ -107,7 +107,11 @@ def _stage_for(target: Path) -> Callable[[Path], None]:
 
     def validate(candidate: Path) -> None:
         try:
-            target.write_text(candidate.read_text(encoding="utf-8"), encoding="utf-8")
+            # False positive (S2083): target is a path the agent read from the
+            # environment at startup via _configured_path(), which refuses
+            # anything non-absolute or containing '..'; candidate is the agent's
+            # own staged file. Neither is request-controlled.
+            target.write_text(candidate.read_text(encoding="utf-8"), encoding="utf-8")  # NOSONAR
             subprocess.run(
                 ["/usr/sbin/radiusd", "-XC"],
                 check=True,
