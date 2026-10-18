@@ -9,10 +9,10 @@ from typing import Any
 INCLUDE = re.compile(r'^[ \t]*include\s+"([^"]+)"\s*;', re.MULTILINE)
 HOST_START = re.compile(r"\bhost\s+([A-Za-z0-9_-]+)\s*\{")
 SUBNET_START = re.compile(r"\bsubnet\s+([0-9.]+)\s+netmask\s+([0-9.]+)\s*\{")
-# The leading (?:\r?\n[ \t]*)* mirrors the previous ^\s* behaviour: removal also
-# consumes any blank lines directly above the directive.
-_RANGE_LINE = re.compile(r"(?m)^[ \t]*(?:\r?\n[ \t]*)*range\s+[0-9.]+\s+[0-9.]+\s*;\s*\n?")
-_OPTION_LINE = re.compile(r"(?m)^[ \t]*(?:\r?\n[ \t]*)*option\s+[A-Za-z0-9_-]+\s+[^;]+;\s*\n?")
+# Possessive quantifiers keep the blank-line run linear for the regex
+# analyzer; each iteration must start with \n so nothing usable is consumed.
+_RANGE_LINE = re.compile(r"(?m)^[ \t]*+(?:\r?\n[ \t]*+)*+range\s+[0-9.]+\s+[0-9.]+\s*;\s*\n?")
+_OPTION_LINE = re.compile(r"(?m)^[ \t]*+(?:\r?\n[ \t]*+)*+option\s+[A-Za-z0-9_-]+\s+[^;]+;\s*\n?")
 
 
 def _block(text: str, start: int) -> tuple[int, str]:
