@@ -6,6 +6,7 @@ Single-package Python repo (not a monorepo). Python >= 3.12, Flask 3, setuptools
 
 ```sh
 . .venv/bin/activate          # venv already exists; deps: pip install -e '.[dev]'
+uv lock                       # after changing [project] deps; CI installs via `uv sync --locked`
 ruff check .                  # lint (includes bandit-style "S" rules)
 ruff format --check .         # formatting, line-length 100
 mypy                          # strict; checks only the netadmin package, not tests

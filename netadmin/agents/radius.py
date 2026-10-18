@@ -14,6 +14,7 @@ from flask import Flask, current_app, jsonify
 
 from netadmin.agents.common import (
     atomic_validated_write,
+    configured_path,
     create_agent,
     json_object,
     validated_transaction,
@@ -86,14 +87,6 @@ def hash_password(password: str) -> str:
         timeout=10,
     )
     return result.stdout.strip()
-
-
-def _configured_path(name: str, default: str) -> Path:
-    """Read an agent file path from the environment, refusing traversal tricks."""
-    candidate = Path(os.getenv(name, default))
-    if not candidate.is_absolute() or ".." in candidate.parts:
-        raise ValueError(f"{name} must be absolute and free of '..': {candidate}")
-    return candidate
 
 
 def _managed_text(managed: Path) -> str:
@@ -306,14 +299,14 @@ def create_radius_agent() -> Flask:
     """Create the FreeRADIUS management agent."""
     app = create_agent(__name__)
     app.config.update(
-        RADIUS_MANAGED=_configured_path(
+        RADIUS_MANAGED=configured_path(
             "RADIUS_MANAGED_FILE", "/etc/raddb/mods-config/files/netadmin"
         ),
-        RADIUS_AUTHORIZE=_configured_path(
+        RADIUS_AUTHORIZE=configured_path(
             "RADIUS_AUTHORIZE_FILE", "/etc/raddb/mods-config/files/authorize"
         ),
-        RADIUS_CLIENTS=_configured_path("RADIUS_CLIENTS_FILE", "/etc/raddb/clients.conf"),
-        RADIUS_MANAGED_CLIENTS=_configured_path(
+        RADIUS_CLIENTS=configured_path("RADIUS_CLIENTS_FILE", "/etc/raddb/clients.conf"),
+        RADIUS_MANAGED_CLIENTS=configured_path(
             "RADIUS_MANAGED_CLIENTS_FILE", "/etc/raddb/netadmin-clients.conf"
         ),
         RADIUS_ADMIN_POOLS=set(

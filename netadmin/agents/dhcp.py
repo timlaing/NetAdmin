@@ -12,6 +12,7 @@ from typing import Any, cast
 from flask import Flask, current_app, jsonify
 
 from netadmin.agents.common import (
+    configured_path,
     create_agent,
     json_object,
     validated_transaction,
@@ -202,9 +203,9 @@ def create_dhcp_agent() -> Flask:
     """Create the DHCP agent application."""
     app = create_agent(__name__)
     app.config.update(
-        DHCP_MANAGED=Path(os.getenv("DHCP_MANAGED_FILE", "/etc/dhcp/netadmin-reservations.conf")),
-        DHCP_MAIN=Path(os.getenv("DHCP_MAIN_CONFIG", "/etc/dhcp/dhcpd.conf")),
-        DHCP_LEASES=Path(os.getenv("DHCP_LEASES_FILE", "/var/lib/dhcp/dhcpd.leases")),
+        DHCP_MANAGED=configured_path("DHCP_MANAGED_FILE", "/etc/dhcp/netadmin-reservations.conf"),
+        DHCP_MAIN=configured_path("DHCP_MAIN_CONFIG", "/etc/dhcp/dhcpd.conf"),
+        DHCP_LEASES=configured_path("DHCP_LEASES_FILE", "/var/lib/dhcp/dhcpd.leases"),
         DHCP_RELOAD=os.getenv("DHCP_RELOAD_COMMAND", "").split(),
     )
     app.add_url_rule("/health", view_func=_health, methods=["GET"])

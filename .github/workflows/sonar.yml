@@ -32,14 +32,15 @@ jobs:
         with:
           python-version: '3.12'
           cache: pip
-          cache-dependency-path: pyproject.toml
-      - name: Install development dependencies
-        run: "python -m pip install --only-binary :all: -e '.[dev]'"
+          cache-dependency-path: uv.lock
+      - name: Install locked dependencies
+        run: |
+          python -m pip install --only-binary :all: "uv==0.13.1"
+          uv sync --locked --no-build --extra dev
       - name: Run tests and generate Python coverage
         run: |
-          python -m pip check
-          python -m pytest -q
-          python -m coverage xml
+          .venv/bin/python -m pytest -q
+          .venv/bin/python -m coverage xml
       - name: Analyze and enforce quality gate
         uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8
         env:
