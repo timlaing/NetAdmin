@@ -44,6 +44,14 @@ Three deployables from one package, wired in `docker-compose.yml`:
   first while old services still run, then stops old, syncs leases/zones (incl.
   `.jnl`), and starts the new stack with health checks. Keeps old containers for
   rollback. Run it on the server from a repo checkout, not locally.
+- `scripts/migrate-to-kea.sh` + `netadmin/services/kea_migrate.py` — generic
+  ISC→Kea migration: folds every host file into one agent-owned
+  `netadmin-reservations.json`, renders `kea4.conf` (globals inherited into every
+  subnet), optionally converts live leases to a Kea memfile, then validates with
+  `kea-dhcp4 -t`. Flag-driven with no network baked in (`--config/--out-dir/
+--interfaces/--lease-db/...`); `NETADMIN_PYTHON` overrides interpreter selection.
+  Strict on purpose: missing config/include or conflicting reservations abort
+  before writing. `cutover.sh` above is the separate pre-NetAdmin path.
 - Service images: `docker/Dockerfile.{bind,dhcpd,freeradius}` with
   `docker/entrypoint-*.sh`; compose tags them `ghcr.io/timlaing/netadmin-{dns,dhcp,radius}`.
   `docker-compose.kea.yml` is the Kea-backend variant of the same stack

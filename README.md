@@ -19,9 +19,10 @@
 [![Bugs](https://sonarcloud.io/api/project_badges/measure?project=timlaing_NetAdmin&metric=bugs)](https://sonarcloud.io/summary/new_code?id=timlaing_NetAdmin)
 [![Technical Debt](https://sonarcloud.io/api/project_badges/measure?project=timlaing_NetAdmin&metric=sqale_index)](https://sonarcloud.io/summary/new_code?id=timlaing_NetAdmin)
 
-NetAdmin is a Flask and Bootstrap application for administering Bind 9, ISC DHCPD and
-FreeRADIUS while leaving each service as the source of truth. Bind uses AXFR and RFC 2136.
-Restricted DHCP and RADIUS agents validate and atomically install file-backed changes.
+NetAdmin is a Flask and Bootstrap application for administering Bind 9, ISC DHCPD (or
+Kea DHCP) and FreeRADIUS while leaving each service as the source of truth. Bind uses
+AXFR and RFC 2136. Restricted DHCP and RADIUS agents validate and atomically install
+file-backed changes.
 
 ## Security model
 
@@ -79,6 +80,40 @@ setup wizard generates the secrets, hashes the emergency root password and write
 reachable through ingress and locks itself once configured; the file is never included in
 the repository or options schema. To migrate an existing pre-NetAdmin stack, run
 `scripts/cutover.sh` from a repo checkout on the server.
+
+### Kea DHCP backend
+
+`docker-compose.kea.yml` is a complete standalone alternative stack running Kea DHCP;
+`docker-compose.yml` (ISC dhcpd) is unchanged:
+
+```sh
+docker compose -f docker-compose.kea.yml up -d --build
+```
+
+The DHCP agent selects its backend with `DHCP_SERVER=isc|kea` (default `isc`) and
+validates candidate files with the matching daemon parser (`dhcpd -t` /
+`kea-dhcp4 -t`); in Kea mode it reloads the daemon over `/run/kea/kea4-ctrl.sock`.
+The Home Assistant add-on exposes the same choice as the `dhcp_backend` option.
+
+#### Migrating an existing ISC configuration
+
+`scripts/migrate-to-kea.sh` converts a live dhcpd tree (the main config plus every
+`include`) into the layout the NetAdmin agent manages:
+
+```sh
+scripts/migrate-to-kea.sh \
+  --config dhcp/config/dhcpd.conf \
+  --out-dir /tmp/kea-migration \
+  --leases dhcp/dhcpd.leases        # optional: keep live bindings
+```
+
+It writes `kea4.conf`, one folded `netadmin-reservations.json` holding every host
+declaration from every file (the agent owns it at runtime), and — with `--leases` — a
+Kea memfile containing only live bindings, then checks the result with the real
+`kea-dhcp4 -t`. Every value is a flag (`--interfaces`, `--include-path`, `--lease-db`,
+`--lifetime`, `--socket-name`, `--dry-run`, …) with no network baked in; conflicting
+reservations and missing includes fail loudly before anything is written. See
+`scripts/migrate-to-kea.sh --help` for the full list.
 
 ## Development
 
