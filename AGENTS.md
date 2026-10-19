@@ -51,7 +51,8 @@ Three deployables from one package, wired in `docker-compose.yml`:
   `kea-dhcp4 -t`. Flag-driven with no network baked in (`--config/--out-dir/
 --interfaces/--lease-db/...`); `NETADMIN_PYTHON` overrides interpreter selection.
   Strict on purpose: missing config/include or conflicting reservations abort
-  before writing. `cutover.sh` above is the separate pre-NetAdmin path.
+  before writing. Migration-day procedure: `MIGRATION.md`. `cutover.sh` above is
+  the separate pre-NetAdmin path.
 - Service images: `docker/Dockerfile.{bind,dhcpd,freeradius}` with
   `docker/entrypoint-*.sh`; compose tags them `ghcr.io/timlaing/netadmin-{dns,dhcp,radius}`.
   `docker-compose.kea.yml` is the Kea-backend variant of the same stack
