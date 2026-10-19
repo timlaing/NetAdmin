@@ -30,12 +30,14 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 
 # Run the user-facing wrapper inside the image. The repo is mounted read-only;
 # NETADMIN_PYTHON skips host-venv detection (a macOS venv cannot execute in
-# the container). Paths in the ISC tree reference /work, the container view.
+# the container). --user keeps generated files owned by the invoking user so
+# cleanup works on Linux CI runners, where container root would outlive us.
 run_migration() { # out-name config-path [leases-path]
   local out="$1" config="$2" leases="${3:-}"
   local args=(--config "$config" --out-dir "/work/$out" --no-validate)
   if [[ -n "$leases" ]]; then args+=(--leases "$leases"); fi
   docker run --rm \
+    --user "$(id -u):$(id -g)" \
     --mount "type=bind,source=$repo_root,target=/repo,readonly" \
     --mount "type=bind,source=$work,target=/work" \
     --workdir /repo \

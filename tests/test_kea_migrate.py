@@ -303,8 +303,9 @@ def test_migrate_rejects_conflicting_reservations(tmp_path: Path) -> None:
         "host b { hardware ethernet aa:bb:cc:dd:ee:01; fixed-address 192.0.2.11; }\n",
         encoding="utf-8",
     )
+    kwargs = migrate_kwargs()
     with pytest.raises(ValueError, match="aa:bb:cc:dd:ee:01"):
-        migrate(config, **migrate_kwargs())
+        migrate(config, **kwargs)
 
 
 def test_collect_fails_on_missing_include(tmp_path: Path) -> None:
@@ -321,8 +322,9 @@ def test_collect_fails_on_missing_include(tmp_path: Path) -> None:
 def test_migrate_requires_at_least_one_subnet(tmp_path: Path) -> None:
     config = tmp_path / "dhcpd.conf"
     config.write_text("default-lease-time 600;\n", encoding="utf-8")
+    kwargs = migrate_kwargs()
     with pytest.raises(ValueError, match="no subnets"):
-        migrate(config, **migrate_kwargs())
+        migrate(config, **kwargs)
 
 
 def test_migrate_round_trips_config_and_reservations(tmp_path: Path) -> None:
