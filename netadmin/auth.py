@@ -100,7 +100,12 @@ def admin_required[**P, R](view: Callable[P, R]) -> Callable[P, R]:
 
 def safe_next_url(value: str | None) -> str:
     """Allow only local absolute-path redirects."""
-    return value if value and value.startswith("/") and not value.startswith("//") else "/"
+    # Backslashes are rejected as well: URL parsers treat "\\" as "/", so a
+    # target like "/\\evil.example" would resolve to another origin even
+    # though it starts with a single slash.
+    if not value or not value.startswith("/") or value.startswith("//") or "\\" in value:
+        return "/"
+    return value
 
 
 def current_identity() -> Identity:

@@ -15,3 +15,5 @@ def test_safe_next_url() -> None:
     assert safe_next_url("/dns") == "/dns"
     assert safe_next_url("//evil.example") == "/"
     assert safe_next_url("https://evil.example") == "/"
+    assert safe_next_url("/\\evil.example") == "/"
+    assert safe_next_url(None) == "/"
