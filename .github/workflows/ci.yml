@@ -91,13 +91,13 @@ jobs:
             runner: ubuntu-24.04
             dockerfile: docker/Dockerfile.dhcp-agent
             image: netadmin-dhcp-agent:test
-            smoke: Tools/smoke_agent.sh
+            smoke: Tools/smoke_agent.sh Tools/smoke_migrate.sh
           - flavour: dhcp-agent
             arch: aarch64
             runner: ubuntu-24.04-arm
             dockerfile: docker/Dockerfile.dhcp-agent
             image: netadmin-dhcp-agent:test
-            smoke: Tools/smoke_agent.sh
+            smoke: Tools/smoke_agent.sh Tools/smoke_migrate.sh
           - flavour: radius-agent
             arch: amd64
             runner: ubuntu-24.04
@@ -189,6 +189,9 @@ jobs:
           docker build --pull -f "$BUILD_DOCKERFILE" "${args[@]}" -t "$BUILD_IMAGE" .
       - name: Smoke test image
         env:
-          SMOKE_SCRIPT: ${{ matrix.smoke }}
+          SMOKE_SCRIPTS: ${{ matrix.smoke }}
           BUILD_IMAGE: ${{ matrix.image }}
-        run: bash "$SMOKE_SCRIPT" "$BUILD_IMAGE"
+        run: |
+          for script in $SMOKE_SCRIPTS; do
+            bash "$script" "$BUILD_IMAGE"
+          done
