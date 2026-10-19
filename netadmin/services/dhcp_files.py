@@ -15,6 +15,7 @@ SUBNET_START = re.compile(r"\bsubnet\s+([0-9.]+)\s+netmask\s+([0-9.]+)\s*\{")
 # are consumed by _remove_directives, matching the old ^\s* behaviour.
 _RANGE_LINE = re.compile(r"(?m)^[ \t]*range\s+[0-9.]+\s+[0-9.]+\s*;\s*\n?")
 _OPTION_LINE = re.compile(r"(?m)^[ \t]*option\s+[A-Za-z0-9_-]+\s++[^;]*;\s*\n?")
+_OPTION_STATEMENT = re.compile(r"(?m)^[ \t]*option\s+([A-Za-z0-9_-]+)\s++([^;]*);")
 
 
 def _remove_directives(body: str, pattern: re.Pattern[str]) -> str:
@@ -109,6 +110,26 @@ def subnets(text: str) -> list[dict[str, Any]]:
                 "options": options,
             }
         )
+    return result
+
+
+def global_options(text: str) -> dict[str, str]:
+    """Parse option statements declared outside every subnet and host block.
+
+    ISC applies these top-level options to all subnets unless a subnet
+    overrides them, so a migration must carry them into each subnet's
+    ``option-data`` or clients lose them.
+    """
+    spans: list[tuple[int, int]] = []
+    for pattern in (SUBNET_START, HOST_START):
+        for match in pattern.finditer(text):
+            end, _ = _block(text, match.start())
+            spans.append((match.start(), end))
+    result: dict[str, str] = {}
+    for match in _OPTION_STATEMENT.finditer(text):
+        if any(start <= match.start() < end for start, end in spans):
+            continue
+        result[match.group(1)] = match.group(2).strip().strip('"')
     return result
 
 

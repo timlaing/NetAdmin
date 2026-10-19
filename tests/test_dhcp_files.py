@@ -4,6 +4,7 @@ from pathlib import Path
 
 from netadmin.services.dhcp_files import (
     discover_files,
+    global_options,
     kea_export,
     remove_reservation,
     reservations,
@@ -99,3 +100,20 @@ def test_kea_export_places_hosts_by_subnet() -> None:
     assert [host["hostname"] for host in subnets_out[1]["reservations"]] == ["printer"]
     assert snapshot["Dhcp4"]["reservations-global"] is True
     assert [host["hostname"] for host in snapshot["Dhcp4"]["reservations"]] == ["orphan"]
+
+
+def test_global_options_ignore_subnet_and_host_blocks() -> None:
+    text = (
+        'option domain-name "lan.example";\n'
+        "option domain-name-servers 192.0.2.1, 192.0.2.2;\n"
+        "subnet 192.0.2.0 netmask 255.255.255.0 {\n"
+        "  option routers 192.0.2.1;\n"
+        "  range 192.0.2.10 192.0.2.20;\n"
+        "}\n"
+        "host pi { hardware ethernet aa:bb:cc:dd:ee:ff; fixed-address 192.0.2.3; }\n"
+    )
+    assert global_options(text) == {
+        "domain-name": "lan.example",
+        "domain-name-servers": "192.0.2.1, 192.0.2.2",
+    }
+    assert global_options("host pi { option routers 192.0.2.1; }") == {}
