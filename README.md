@@ -113,7 +113,8 @@ Kea memfile containing only live bindings, then checks the result with the real
 `kea-dhcp4 -t`. Every value is a flag (`--interfaces`, `--include-path`, `--lease-db`,
 `--lifetime`, `--socket-name`, `--dry-run`, …) with no network baked in; conflicting
 reservations and missing includes fail loudly before anything is written. See
-`scripts/migrate-to-kea.sh --help` for the full list.
+`scripts/migrate-to-kea.sh --help` for the full list, and [MIGRATION.md](MIGRATION.md)
+for the step-by-step migration-day runbook (prepare, cutover, verify, rollback).
 
 ## Development
 
