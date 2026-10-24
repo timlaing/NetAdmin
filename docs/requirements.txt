@@ -1,0 +1,5 @@
+# Documentation toolchain — exact pins, installed only by the pages workflow
+# and local docs.sh invocations. Deliberately separate from the project's
+# uv.lock (the site toolchain must not perturb application dependencies).
+mkdocs==1.6.1
+mkdocs-material==9.8.0
