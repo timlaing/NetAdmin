@@ -25,6 +25,8 @@ Kea DHCP) and FreeRADIUS while leaving each service as the source of truth. Bind
 AXFR and RFC 2136. Restricted DHCP and RADIUS agents validate and atomically install
 file-backed changes.
 
+[![Open your Home Assistant instance and show the add add-on repository dialog with a specific repository URL pre-filled.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Ftimlaing%2FNetAdmin)
+
 ## Security model
 
 - RADIUS authentication with `Filter-Id` mapped to `netadmin-admin` or `netadmin-standard`.
