@@ -1,10 +1,10 @@
 # NetAdmin
 
-[![CI](https://github.com/timlaing/NetAdmin/actions/workflows/ci.yml/badge.svg)](https://github.com/timlaing/NetAdmin/actions/workflows/ci.yml)
-[![Lint](https://github.com/timlaing/NetAdmin/actions/workflows/lint.yml/badge.svg)](https://github.com/timlaing/NetAdmin/actions/workflows/lint.yml)
-[![CodeQL](https://github.com/timlaing/NetAdmin/actions/workflows/codeql.yml/badge.svg)](https://github.com/timlaing/NetAdmin/actions/workflows/codeql.yml)
-[![License](https://img.shields.io/github/license/timlaing/NetAdmin)](LICENSE)
-[![Docs](https://img.shields.io/badge/docs-GitHub%20Pages-4c8eda)](https://timlaing.github.io/NetAdmin/)
+[![CI](https://github.com/timlaing/net-admin/actions/workflows/ci.yml/badge.svg)](https://github.com/timlaing/net-admin/actions/workflows/ci.yml)
+[![Lint](https://github.com/timlaing/net-admin/actions/workflows/lint.yml/badge.svg)](https://github.com/timlaing/net-admin/actions/workflows/lint.yml)
+[![CodeQL](https://github.com/timlaing/net-admin/actions/workflows/codeql.yml/badge.svg)](https://github.com/timlaing/net-admin/actions/workflows/codeql.yml)
+[![License](https://img.shields.io/github/license/timlaing/net-admin)](LICENSE)
+[![Docs](https://img.shields.io/badge/docs-GitHub%20Pages-4c8eda)](https://timlaing.github.io/net-admin/)
 
 [![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=timlaing_NetAdmin&metric=ncloc)](https://sonarcloud.io/summary/new_code?id=timlaing_NetAdmin)
 [![Code style: Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
@@ -25,7 +25,7 @@ Kea DHCP) and FreeRADIUS while leaving each service as the source of truth. Bind
 AXFR and RFC 2136. Restricted DHCP and RADIUS agents validate and atomically install
 file-backed changes.
 
-[![Open your Home Assistant instance and show the add add-on repository dialog with a specific repository URL pre-filled.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Ftimlaing%2FNetAdmin)
+[![Open your Home Assistant instance and show the add add-on repository dialog with a specific repository URL pre-filled.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Ftimlaing%2Fnet-admin)
 
 ## Security model
 

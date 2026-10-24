@@ -34,4 +34,4 @@ property of their respective owners; links are provided for identification.
 
 Container base images are Ubuntu; see each published image's manifest for the
 exact package set and licenses. NetAdmin itself is distributed under the
-license in [LICENSE](https://github.com/timlaing/NetAdmin/blob/main/LICENSE).
+license in [LICENSE](https://github.com/timlaing/net-admin/blob/main/LICENSE).

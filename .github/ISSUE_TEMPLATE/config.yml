@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Private security report
-    url: https://github.com/timlaing/NetAdmin/blob/main/SECURITY.md
+    url: https://github.com/timlaing/net-admin/blob/main/SECURITY.md
     about: Report vulnerabilities privately; never include credentials in public issues.
   - name: Setup and migration
-    url: https://github.com/timlaing/NetAdmin/blob/main/README.md
+    url: https://github.com/timlaing/net-admin/blob/main/README.md
     about: Installation, docker-compose deployment, the Home Assistant add-on and the server cutover script.

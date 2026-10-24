@@ -3,9 +3,9 @@
 # everything into site-src/ (gitignored) so MkDocs builds one coherent site.
 site_name: NetAdmin
 site_description: Administer Bind 9, ISC DHCPD or Kea DHCP and FreeRADIUS from one web app
-site_url: https://timlaing.github.io/NetAdmin/
-repo_url: https://github.com/timlaing/NetAdmin
-repo_name: timlaing/NetAdmin
+site_url: https://timlaing.github.io/net-admin/
+repo_url: https://github.com/timlaing/net-admin
+repo_name: timlaing/net-admin
 edit_uri: ''
 docs_dir: site-src
 site_dir: site

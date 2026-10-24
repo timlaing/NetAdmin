@@ -2,7 +2,7 @@ name: NetAdmin
 version: "0.2.0"
 slug: netadmin
 description: Secure Bind, DHCP and RADIUS administration
-url: https://github.com/timlaing/NetAdmin
+url: https://github.com/timlaing/net-admin
 arch: [amd64, aarch64]
 startup: services
 init: false
