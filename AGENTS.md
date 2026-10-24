@@ -102,6 +102,7 @@ is `kill -HUP 1`.
 - No CI workflows existed before `.github/workflows/`; the local check sequence above is
   still the fast gate. CI additionally builds every image and runs the `Tools/smoke_*.sh`
   smoke tests, so container-affecting changes (Dockerfiles, env handling, `wsgi.py`,
-  `setup.py`) must pass those before a `v*` tag can publish to GHCR.
+  `setup.py`) must pass those before the release that publishes them to GHCR
+  (`publish.yml` triggers on `release: published`, not on tag pushes).
 - Commit messages follow conventional commits (`feat:`, `fix:`, `test:`) — release-drafter
   and the autolabeler depend on them.

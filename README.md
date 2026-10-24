@@ -144,8 +144,9 @@ flow for dhcp, and runtime TLS generation, reuse, seeded-material validation and
 fingerprint-only logging for radius (`Tools/smoke_*.sh`). Every image is built and
 smoke-tested on both amd64 and aarch64 (native runners).
 
-Pushing a `vX.Y.Z` tag publishes multi-arch images to GHCR after verify and lint
-gates pass (`.github/workflows/publish.yml`):
+Publishing a `vX.Y.Z` GitHub Release publishes multi-arch images to GHCR after
+verify and lint gates pass (`.github/workflows/publish.yml` triggers on
+`release: published`, so a stray `git push --tags` publishes nothing):
 
 - `ghcr.io/timlaing/netadmin` — web application
 - `ghcr.io/timlaing/netadmin-dhcp-agent` — restricted DHCP agent
@@ -155,5 +156,6 @@ gates pass (`.github/workflows/publish.yml`):
 - `ghcr.io/timlaing/netadmin-radius` — FreeRADIUS service
 - `ghcr.io/timlaing/<arch>-addon-netadmin` — Home Assistant add-on
 
-The tag must match `home-assistant/netadmin/config.yaml`'s `version`. Release
-notes are drafted automatically from conventional commits by release-drafter.
+The release's tag must match `home-assistant/netadmin/config.yaml`'s `version`.
+Release notes are drafted automatically from conventional commits by
+release-drafter; the tag is created when the release is published.
