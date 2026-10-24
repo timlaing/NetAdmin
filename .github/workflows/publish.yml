@@ -1,8 +1,14 @@
 name: Publish containers
 
+# Publishing images is driven by the GitHub Release, not by a raw tag push, so
+# the release is the single source of truth for a version. `published` fires
+# both for a release created as published and when a draft is promoted (and for
+# pre-releases published from drafts); `created`/`edited` do not fire for drafts.
+# `GITHUB_REF` is the tag ref (refs/tags/<tag>), so the $GITHUB_REF_NAME checks
+# below are unchanged. A stray `git push --tags` therefore publishes nothing.
 on:
-  push:
-    tags: ['v*']
+  release:
+    types: [published]
 
 permissions:
   contents: read
