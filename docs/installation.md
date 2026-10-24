@@ -34,8 +34,8 @@ All images can equally be built locally from this repository's Dockerfiles.
 1. Clone and enter the repository:
 
    ```sh
-   git clone https://github.com/timlaing/NetAdmin.git
-   cd NetAdmin
+   git clone https://github.com/timlaing/net-admin.git
+   cd net-admin
    ```
 
 2. Copy `.env.example` to `.env` and replace every placeholder — see

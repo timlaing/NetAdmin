@@ -6,8 +6,8 @@ Docker Compose stack (ISC DHCPD backend).
 ## 1. Clone and configure
 
 ```sh
-git clone https://github.com/timlaing/NetAdmin.git
-cd NetAdmin
+git clone https://github.com/timlaing/net-admin.git
+cd net-admin
 cp .env.example .env
 ```
 

@@ -3,7 +3,7 @@
 ## Reporting a Vulnerability
 
 Report security issues privately through
-[GitHub security advisories](https://github.com/timlaing/NetAdmin/security/advisories/new).
+[GitHub security advisories](https://github.com/timlaing/net-admin/security/advisories/new).
 Do not open a public issue for security reports.
 
 Include the affected component (web app, DHCP agent, RADIUS agent, add-on), the
