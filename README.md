@@ -4,6 +4,7 @@
 [![Lint](https://github.com/timlaing/NetAdmin/actions/workflows/lint.yml/badge.svg)](https://github.com/timlaing/NetAdmin/actions/workflows/lint.yml)
 [![CodeQL](https://github.com/timlaing/NetAdmin/actions/workflows/codeql.yml/badge.svg)](https://github.com/timlaing/NetAdmin/actions/workflows/codeql.yml)
 [![License](https://img.shields.io/github/license/timlaing/NetAdmin)](LICENSE)
+[![Docs](https://img.shields.io/badge/docs-GitHub%20Pages-4c8eda)](https://timlaing.github.io/NetAdmin/)
 
 [![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=timlaing_NetAdmin&metric=ncloc)](https://sonarcloud.io/summary/new_code?id=timlaing_NetAdmin)
 [![Code style: Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)

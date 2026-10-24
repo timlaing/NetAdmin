@@ -1,0 +1,71 @@
+# GitHub Pages site — built by .github/workflows/pages.yml via scripts/docs.sh.
+# Canonical documents live at the repository root; scripts/docs.sh stages
+# everything into site-src/ (gitignored) so MkDocs builds one coherent site.
+site_name: NetAdmin
+site_description: Administer Bind 9, ISC DHCPD or Kea DHCP and FreeRADIUS from one web app
+site_url: https://timlaing.github.io/NetAdmin/
+repo_url: https://github.com/timlaing/NetAdmin
+repo_name: timlaing/NetAdmin
+edit_uri: ''
+docs_dir: site-src
+site_dir: site
+
+theme:
+  name: material
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.top
+    - search.highlight
+    - search.suggest
+    - content.code.copy
+  palette:
+    - media: '(prefers-color-scheme: light)'
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: '(prefers-color-scheme: dark)'
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+nav:
+  - Home: index.md
+  - Getting started:
+      - Installation: installation.md
+      - Quick start: quickstart.md
+      - Configuration: configuration.md
+  - Guides:
+      - 'ISC → Kea migration': migration.md
+  - Security: security.md
+  - Development: development.md
+  - Contributing: contributing.md
+  - Attribution: attribution.md
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.tabbed:
+      alternate_style: true
+
+plugins:
+  - search
+
+copyright: © 2026 Tim Laing

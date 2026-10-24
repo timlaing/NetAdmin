@@ -7,6 +7,11 @@ __pycache__/
 .ruff_cache/
 .venv/
 .opencode/
+
+# Documentation site: MkDocs output and generated staging tree. Canonical docs
+# stay at the repository root; scripts/docs.sh regenerates site-src/ each run.
+site/
+site-src/
 data/
 *.sqlite3
 .env
