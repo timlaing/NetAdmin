@@ -11,7 +11,10 @@ updates:
       release-drafter-actions:
         patterns: [release-drafter/release-drafter*]
     open-pull-requests-limit: 5
-  - package-ecosystem: pip
+  # uv ecosystem, not pip: uv update PRs regenerate uv.lock alongside
+  # pyproject.toml. pip only bumps the manifest, leaving uv.lock stale and
+  # failing `uv sync --locked` in CI (hit on main 2026-10-24: #18 / fixed #22).
+  - package-ecosystem: uv
     directory: /
     schedule:
       interval: weekly
