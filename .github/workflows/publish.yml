@@ -131,7 +131,9 @@ jobs:
           PUBLISH_VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           set -euo pipefail
-          base="ghcr.io/${GITHUB_REPOSITORY,,}"
+          # Image names are a published API: pin the repo segment so a repository
+          # rename does not silently publish to a new set of GHCR packages.
+          base="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/netadmin"
           if [[ "$FLAVOUR" == netadmin ]]; then
             image="$base"
           else
@@ -216,7 +218,9 @@ jobs:
       - name: 🧾 Create multi-arch manifests
         run: |
           set -euo pipefail
-          base="ghcr.io/${GITHUB_REPOSITORY,,}"
+          # Keep the GHCR repo segment pinned (see the publish job): image names
+          # must not follow a repository rename.
+          base="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/netadmin"
           prerelease=false
           [[ "$PUBLISH_VERSION" == *-* ]] && prerelease=true
           for suffix in '' '-dhcp-agent' '-radius-agent' '-dns' '-dhcp' '-radius'; do
